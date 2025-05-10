@@ -76,8 +76,8 @@ Most scrcpy streaming parameters can be configured directly through the web inte
 
 ## Legacy
 
-You can checkout earlier commmit or download legacy release to use legacy scrcpy-desktop which uses python and native scrcpy client
-Read more about that version in [LEGACY_README](LEGACY_README)
+You can checkout earlier commmit or download legacy release to use legacy scrcpy-desktop which uses python and native scrcpy client.
+Read more about that version in [LEGACY_README](LEGACY_README.md)
 
 ## License
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
