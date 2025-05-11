@@ -25,6 +25,7 @@ export const elements = {
 	streamArea: document.getElementById('streamArea'),
 	videoPlaceholder: document.getElementById('videoPlaceholder'),
 	videoElement: document.getElementById('screen'),
+	broadwayCanvas: document.getElementById('broadwayCanvas'),
 	videoBorder: document.getElementById('videoBorder'),
 	logArea: document.getElementById('logArea'),
 	logContent: document.getElementById('logContent'),
@@ -74,4 +75,5 @@ export const elements = {
     wifiIndicator: document.querySelector('.quick-settings-trigger .wifi-indicator'),
     batteryFill: document.querySelector('.battery-fill'),
     batteryIcon: document.querySelector('.battery-icon'),
+    decoderTypeSelect: document.getElementById('decoderType'),
 };

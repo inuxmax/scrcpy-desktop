@@ -3,7 +3,7 @@ import { appendLog, updateStatus } from './loggerService.js';
 import { populateDeviceSelect, requestAdbDevices as refreshAdbDevicesSidebar } from './ui/sidebarControls.js';
 import { handleStreamingStarted, handleStreamingStopped, handleResolutionChange, handleDeviceName, handleAudioInfo, handleBatteryInfo, handleVolumeInfo, handleWifiStatusResponse, handleNavResponse, handleLauncherAppsList, handleLaunchAppResponse } from './messageHandlers.js';
 import { BINARY_TYPES } from './constants.js';
-import { handleVideoData } from './services/videoPlaybackService.js';
+import { handleVideoData, handleVideoInfo as processVideoInfo } from './services/videoPlaybackService.js';
 import { handleAudioData as processAudioData } from './services/audioPlaybackService.js';
 import { elements } from './domElements.js';
 
@@ -49,10 +49,7 @@ export function initializeWebSocket() {
 
             switch (message.type) {
                 case 'deviceName': handleDeviceName(message); break;
-                case 'videoInfo':
-                    if (typeof window.handleVideoInfo === 'function') window.handleVideoInfo(message);
-                    else appendLog(`Placeholder: Received videoInfo: ${JSON.stringify(message)}`);
-                    break;
+                case 'videoInfo': processVideoInfo(message.width, message.height); break;
                 case 'audioInfo': handleAudioInfo(message); break;
                 case 'status':
                     updateStatus(message.message);
@@ -91,7 +88,7 @@ export function initializeWebSocket() {
 			const type = dataView.getUint8(0);
 			const payload = event.data.slice(1);
 
-			if (type === BINARY_TYPES.VIDEO && globalState.converter) {
+			if (type === BINARY_TYPES.VIDEO && (globalState.converter || globalState.broadwayPlayer)) {
                 handleVideoData(payload);
 			} else if (type === BINARY_TYPES.AUDIO && elements.enableAudioInput.checked) {
                 processAudioData(payload);

@@ -3,7 +3,7 @@ import { elements } from './domElements.js';
 import { appendLog, updateStatus } from './loggerService.js';
 import { sendWebSocketMessage } from './websocketService.js';
 import { setupAudioPlayer as setupAudioDecoder, closeAudio } from './services/audioPlaybackService.js';
-import { initializeVideoConverter, stopVideoConverter, updateVideoResolutionInStream, checkForBadState, handleVideoInfo as processVideoInfoInternal } from './services/videoPlaybackService.js';
+import { stopVideoPlayback, updateVideoResolutionInStream, checkForBadState, handleVideoInfo as processVideoInfoInternal } from './services/videoPlaybackService.js';
 import { updateDisplayOptionsOnStreamStop, updateDisplayOptionsOnStreamStart } from './ui/sidebarControls.js';
 import { renderAppDrawer } from './ui/appDrawer.js';
 import { updateSpeakerIconFromVolume, updateSliderBackground, updateWifiIndicatorUI, updateBatteryLevelUI } from './ui/taskbarControls.js';
@@ -25,7 +25,13 @@ export function handleAudioInfo(message) {
 }
 
 export function handleStreamingStarted() {
-    if(elements.videoElement) elements.videoElement.classList.toggle('control-enabled', globalState.controlEnabledAtStart);
+    const targetRenderElement = globalState.decoderType === 'broadway' ? elements.broadwayCanvas : elements.videoElement;
+    if (targetRenderElement) {
+        targetRenderElement.classList.toggle('control-enabled', globalState.controlEnabledAtStart);
+    } else if (elements.videoElement && globalState.decoderType === 'mse') { 
+        elements.videoElement.classList.toggle('control-enabled', globalState.controlEnabledAtStart);
+    }
+
     if (globalState.checkStateIntervalId) clearInterval(globalState.checkStateIntervalId);
     globalState.checkStateIntervalId = setInterval(checkForBadState, CHECK_STATE_INTERVAL_MS);
 
@@ -43,12 +49,19 @@ export function handleStreamingStopped(sendDisconnect = true) {
 		globalState.checkStateIntervalId = null;
 	}
     closeAudio();
-    stopVideoConverter();
+    stopVideoPlayback();
 
     if (elements.videoElement) {
         elements.videoElement.classList.remove('visible');
         elements.videoElement.classList.remove('control-enabled');
     }
+    if (elements.broadwayCanvas) {
+        elements.broadwayCanvas.classList.remove('visible');
+        elements.broadwayCanvas.classList.remove('control-enabled');
+        const ctx = elements.broadwayCanvas.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, elements.broadwayCanvas.width, elements.broadwayCanvas.height);
+    }
+
     if (elements.videoPlaceholder) elements.videoPlaceholder.classList.remove('hidden');
     if (elements.videoBorder) elements.videoBorder.style.display = 'none';
     if (elements.streamArea) elements.streamArea.style.aspectRatio = '9 / 16';

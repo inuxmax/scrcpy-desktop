@@ -4,10 +4,10 @@ import { elements } from './domElements.js';
 import { initializeWebSocket, sendWebSocketMessage, closeWebSocket } from './websocketService.js';
 import { initGlobalErrorHandling, appendLog } from './loggerService.js';
 import { initInputService } from './services/inputService.js';
-import { initializeVideoConverter, stopVideoConverter } from './services/videoPlaybackService.js';
+import { stopVideoPlayback } from './services/videoPlaybackService.js';
 import { closeAudio } from './services/audioPlaybackService.js';
 
-import { initSidebarControls, stopStreamingAndCleanup } from './ui/sidebarControls.js';
+import { initSidebarControls } from './ui/sidebarControls.js';
 import { initTaskbarControls } from './ui/taskbarControls.js';
 import { initModals } from './ui/modals.js';
 import { initAppDrawer } from './ui/appDrawer.js';
@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 globalState.checkStateIntervalId = null;
             }
             closeAudio();
-            stopVideoConverter();
+            stopVideoPlayback();
 
             closeWebSocket();
             appendLog('Attempted cleanup on page unload.');

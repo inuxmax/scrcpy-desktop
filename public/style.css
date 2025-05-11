@@ -242,6 +242,16 @@ header h1 {
     opacity: 1;
 }
 
+#broadwayCanvas {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#broadwayCanvas.visible {
+    opacity: 1;
+}
+
+
 #screen.control-enabled {
     cursor: crosshair;
 }
@@ -557,7 +567,8 @@ header h1 {
     box-shadow: none;
 }
 
-#streamArea:fullscreen #screen {
+#streamArea:fullscreen #screen,
+#streamArea:fullscreen #broadwayCanvas {
     position: absolute;
     top: 0;
     left: 0;

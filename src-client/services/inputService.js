@@ -4,11 +4,22 @@ import { sendControlMessageToServer } from '../websocketService.js';
 import * as C from '../constants.js';
 
 function getScaledCoordinates(event) {
-	const video = elements.videoElement;
-	if (!video || !globalState.deviceWidth || !globalState.deviceHeight) return null;
+	let targetElement;
+	if (globalState.decoderType === 'broadway') {
+		targetElement = globalState.broadwayPlayer ? globalState.broadwayPlayer.canvas : null;
+        if (!targetElement) {
+            targetElement = elements.broadwayCanvas;
+        }
+	} else {
+		targetElement = elements.videoElement;
+	}
 
-	const rect = video.getBoundingClientRect();
-	let { clientWidth, clientHeight } = video;
+	if (!targetElement || !targetElement.clientWidth || !targetElement.clientHeight || !globalState.deviceWidth || !globalState.deviceHeight) {
+        return null;
+    }
+
+	const rect = targetElement.getBoundingClientRect();
+	let { clientWidth, clientHeight } = targetElement;
 	let touchX = event.clientX - rect.left;
 	let touchY = event.clientY - rect.top;
 
@@ -70,10 +81,15 @@ function sendBackButtonControlInternal() {
 
 function handleMouseDown(event) {
 	if (!globalState.isRunning || !globalState.controlEnabledAtStart || !globalState.deviceWidth || !globalState.deviceHeight) return;
+    const activeRenderingElement = globalState.decoderType === 'broadway' ? (globalState.broadwayPlayer ? globalState.broadwayPlayer.canvas : null) : elements.videoElement;
+    if (!activeRenderingElement || !event.target || (event.target !== activeRenderingElement && !activeRenderingElement.contains(event.target))) {
+        if (event.target !== elements.streamArea) return; // Allow clicks on streamArea itself if no specific element is hit
+    }
+
 	event.preventDefault();
 	globalState.isMouseDown = true;
 
-    if (event.button === 2) {
+    if (event.button === 2) { // Right-click
         sendBackButtonControlInternal();
         globalState.isMouseDown = false;
         globalState.currentMouseButtons = 0;
@@ -101,7 +117,6 @@ function handleMouseUp(event) {
         globalState.currentMouseButtons = 0;
         return;
     }
-	event.preventDefault();
 
 	let buttonFlag = 0;
 	switch (event.button) {
@@ -113,7 +128,7 @@ function handleMouseUp(event) {
 
 	if (!(globalState.currentMouseButtons & buttonFlag)) return;
 
-	const coords = getScaledCoordinates(event);
+	const coords = getScaledCoordinates(event); 
 	const finalCoords = coords || globalState.lastMousePosition;
 
 	sendMouseEvent(C.AMOTION_EVENT_ACTION_UP, globalState.currentMouseButtons, finalCoords.x, finalCoords.y);
@@ -125,7 +140,7 @@ function handleMouseUp(event) {
 
 function handleMouseMove(event) {
 	if (!globalState.isRunning || !globalState.controlEnabledAtStart || !globalState.deviceWidth || !globalState.deviceHeight || !globalState.isMouseDown) return;
-	event.preventDefault();
+	
 	const coords = getScaledCoordinates(event);
 	if (coords) {
 		globalState.lastMousePosition = coords;
@@ -135,7 +150,6 @@ function handleMouseMove(event) {
 
 function handleMouseLeave(event) {
 	if (!globalState.isRunning || !globalState.controlEnabledAtStart || !globalState.isMouseDown || globalState.currentMouseButtons === 0) return;
-	event.preventDefault();
 	sendMouseEvent(C.AMOTION_EVENT_ACTION_UP, globalState.currentMouseButtons, globalState.lastMousePosition.x, globalState.lastMousePosition.y);
 	globalState.isMouseDown = false;
 	globalState.currentMouseButtons = 0;
@@ -143,22 +157,37 @@ function handleMouseLeave(event) {
 
 function handleWheelEvent(event) {
     if (!globalState.isRunning || !globalState.controlEnabledAtStart || !globalState.deviceWidth || globalState.deviceWidth <= 0 || !globalState.deviceHeight || globalState.deviceHeight <= 0) return;
+    
+    const activeRenderingElement = globalState.decoderType === 'broadway' ? (globalState.broadwayPlayer ? globalState.broadwayPlayer.canvas : null) : elements.videoElement;
+    if (!activeRenderingElement || !event.target || (event.target !== activeRenderingElement && !activeRenderingElement.contains(event.target))) {
+       return;
+    }
     event.preventDefault();
+
     let coords = getScaledCoordinates(event);
     if (!coords) {
-        if (globalState.lastMousePosition.x > 0 || globalState.lastMousePosition.y > 0) coords = globalState.lastMousePosition;
-        else return;
+        if (globalState.lastMousePosition.x > 0 || globalState.lastMousePosition.y > 0) {
+            coords = globalState.lastMousePosition;
+        } else {
+            return;
+        }
     }
     let hscroll_float = 0.0, vscroll_float = 0.0;
-    const scrollSensitivity = 2.5;
-    if (event.deltaX !== 0) hscroll_float = event.deltaX > 0 ? -scrollSensitivity : scrollSensitivity;
-    if (event.deltaY !== 0) vscroll_float = event.deltaY > 0 ? -scrollSensitivity : scrollSensitivity;
+    const scrollSensitivity = 1.0;
+    if (event.deltaX !== 0) {
+        hscroll_float = event.deltaX > 0 ? -scrollSensitivity : scrollSensitivity;
+    }
+    if (event.deltaY !== 0) {
+        vscroll_float = event.deltaY > 0 ? -scrollSensitivity : scrollSensitivity;
+    }
     hscroll_float = Math.max(-1.0, Math.min(1.0, hscroll_float));
     vscroll_float = Math.max(-1.0, Math.min(1.0, vscroll_float));
+
     if (hscroll_float === 0.0 && vscroll_float === 0.0) return;
 
     const hscroll_fixed_point_short = Math.round(hscroll_float * 32767.0);
     const vscroll_fixed_point_short = Math.round(vscroll_float * 32767.0);
+
     const buffer = new ArrayBuffer(21);
     const dataView = new DataView(buffer);
     let offset = 0;
@@ -174,13 +203,21 @@ function handleWheelEvent(event) {
 }
 
 export function initInputService() {
-    if (elements.videoElement) {
-        elements.videoElement.addEventListener('mousedown', handleMouseDown);
-        elements.videoElement.addEventListener('mousemove', handleMouseMove);
-        elements.videoElement.addEventListener('mouseleave', handleMouseLeave);
-        elements.videoElement.addEventListener('wheel', handleWheelEvent, { passive: false });
-        elements.videoElement.addEventListener('contextmenu', (e) => {
-            if (globalState.controlEnabledAtStart && globalState.isRunning) e.preventDefault();
+    if (elements.streamArea) {
+        elements.streamArea.addEventListener('mousedown', handleMouseDown);
+        elements.streamArea.addEventListener('mousemove', handleMouseMove);
+        elements.streamArea.addEventListener('mouseleave', handleMouseLeave);
+        elements.streamArea.addEventListener('wheel', handleWheelEvent, { passive: false });
+        elements.streamArea.addEventListener('contextmenu', (e) => {
+
+            const activeRenderingElement = globalState.decoderType === 'broadway' 
+                ? (globalState.broadwayPlayer ? globalState.broadwayPlayer.canvas : null) 
+                : elements.videoElement;
+            
+            if (globalState.controlEnabledAtStart && globalState.isRunning && activeRenderingElement && 
+                (e.target === activeRenderingElement || activeRenderingElement.contains(e.target))) {
+                e.preventDefault();
+            }
         });
     }
     document.addEventListener('mouseup', handleMouseUp);

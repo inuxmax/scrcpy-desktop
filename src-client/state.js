@@ -3,6 +3,7 @@ import { APPS_PER_PAGE } from './constants.js';
 export const globalState = {
 	ws: null,
 	converter: null,
+	broadwayPlayer: null,
 	isRunning: false,
 	audioContext: null,
 	audioDecoder: null,
@@ -45,6 +46,7 @@ export const globalState = {
 	currentDisplayMode: 'default',
     volumeChangeTimeout: null,
     lastVolumeSendTime: 0,
+    decoderType: 'mse', 
     pendingVolumeValue: null,
     frameCheckCounter: 0,
     qrWs: null,
@@ -58,6 +60,7 @@ export const globalState = {
 
 export function resetStreamRelatedState() {
     globalState.converter = null;
+    globalState.broadwayPlayer = null;
 	globalState.audioContext = null;
 	globalState.audioDecoder = null;
 	globalState.sourceBufferInternal = null;

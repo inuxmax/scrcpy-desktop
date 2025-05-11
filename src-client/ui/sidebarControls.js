@@ -1,7 +1,7 @@
 import { elements } from '../domElements.js';
 import { globalState } from '../state.js';
 import { sendWebSocketMessage, initializeWebSocket as initMainWebSocket } from '../websocketService.js';
-import { initializeVideoConverter as initVideo, stopVideoConverter as stopVideo } from '../services/videoPlaybackService.js';
+import { initializeVideoPlayback, stopVideoPlayback } from '../services/videoPlaybackService.js';
 import { appendLog, updateStatus } from '../loggerService.js';
 import { sendAdbCommandToServer } from '../services/adbClientService.js';
 import { handleStreamingStopped } from '../messageHandlers.js';
@@ -37,6 +37,7 @@ async function startStreaming() {
 	}
 
 	globalState.isRunning = true;
+    globalState.decoderType = elements.decoderTypeSelect.value;
     globalState.controlEnabledAtStart = elements.enableControlInput.checked;
 	updateDisplayOptionsOnStreamStart();
 
@@ -103,7 +104,7 @@ async function startStreaming() {
             startMessage.resolution = finalResolution;
             startMessage.dpi = finalDpi;
 		}
-        initVideo();
+        initializeVideoPlayback();
 		sendWebSocketMessage(startMessage);
 	} catch (error) {
 		appendLog(`Error during pre-start ADB commands: ${error.message}`, true);
@@ -211,6 +212,7 @@ export function updateDisplayOptionsState() {
     const isNative = mode === 'native_taskbar';
     const isDefault = mode === 'default';
 
+    if (elements.decoderTypeSelect) elements.decoderTypeSelect.disabled = isStreaming;
     const controlsToUpdate = [
         { els: [elements.bitrateSelect, elements.customBitrateInput], enable: canInteractWithOptions },
         { els: [elements.maxFpsSelect], enable: canInteractWithOptions },
@@ -243,7 +245,7 @@ export function updateDisplayOptionsState() {
         const streamDisableConfig = [
             elements.resolutionSelect, elements.customResolutionInput, elements.dpiSelect, elements.customDpiInput,
             elements.bitrateSelect, elements.customBitrateInput, elements.maxFpsSelect, elements.rotationLockSelect,
-            elements.noPowerOnInput, elements.turnScreenOffInput, elements.powerOffOnCloseInput,
+            elements.noPowerOnInput, elements.turnScreenOffInput, elements.powerOffOnCloseInput, elements.decoderTypeSelect,
             elements.enableAudioInput, elements.enableControlInput, ...Array.from(elements.displayModeCheckboxes)
         ];
         streamDisableConfig.forEach(el => { if(el) el.disabled = true; });
@@ -312,6 +314,10 @@ export function initSidebarControls() {
             elements.powerOffOnCloseInput.checked = false;
         }
         updateDisplayOptionsState();
+    });
+
+    elements.decoderTypeSelect.addEventListener('change', () => {
+        globalState.decoderType = elements.decoderTypeSelect.value;
     });
 
     populateDeviceSelect([]);

@@ -289,6 +289,7 @@ function createTcpServer(scid, wsClientsRef) {
         if (!session) { socket.destroy(); return; }
         if (session.socketsConnected >= session.expectedSockets.length) { socket.destroy(); return; }
         session.socketsConnected++;
+		socket.setNoDelay(true);
         socket.scid = scid; socket.remoteId = remoteId;
         socket.dynamicBuffer = { buffer: Buffer.alloc(1024 * 512), length: 0 };
         socket.state = 'AWAITING_INITIAL_DATA'; socket.type = 'unknown'; socket.didHandleDeviceName = false;

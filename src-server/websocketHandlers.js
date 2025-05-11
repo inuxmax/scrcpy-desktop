@@ -275,7 +275,7 @@ const actionHandlers = {
 };
 
 function createWebSocketServer() {
-    const wss = new WebSocket.Server({ port: C.WEBSOCKET_PORT });
+    const wss = new WebSocket.Server({ port: C.WEBSOCKET_PORT, perMessageDeflate: false });
     wss.on('connection', (ws) => {
         const clientId = crypto.randomUUID();
         wsClients.set(clientId, { ws, session: null });

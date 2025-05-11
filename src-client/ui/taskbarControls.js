@@ -4,7 +4,7 @@ import { sendWebSocketMessage } from '../websocketService.js';
 import { appendLog } from '../loggerService.js';
 import { HIDE_TASKBAR_TIMEOUT_MS, DOUBLE_CLICK_THRESHOLD_MS, CONTROL_MSG_TYPE_SET_SCREEN_POWER_MODE_CLIENT, 
 		 SCREEN_POWER_MODE_OFF_CLIENT, CONTROL_MSG_TYPE_EXPAND_NOTIFICATION_PANEL, 
-		 CONTROL_MSG_TYPE_EXPAND_SETTINGS_PANEL } from '../constants.js';
+		 CONTROL_MSG_TYPE_EXPAND_SETTINGS_PANEL, VOLUME_THROTTLE_MS } from '../constants.js';
 		 
 import { sendControlMessageToServer } from '../websocketService.js';
 import { sendAdbCommandToServer } from '../services/adbClientService.js';
@@ -112,20 +112,38 @@ function hideTaskbar() {
 
 function handlePinToggle(isDoubleClick = false) {
 	if (isDoubleClick) {
-		if (!document.fullscreenElement && elements.streamArea) {
-			if (globalState.isRunning && elements.videoElement?.classList.contains('visible')) {
-                elements.streamArea.requestFullscreen().catch(e => {
-                    appendLog(`Fullscreen error: ${e.message}`, true);
-                });
+        const streamArea = elements.streamArea;
+        if (!streamArea) return;
+
+        let isStreamVisible = false;
+        if (globalState.decoderType === 'mse' && elements.videoElement?.classList.contains('visible')) {
+            isStreamVisible = true;
+        } else if (globalState.decoderType === 'broadway' && globalState.broadwayPlayer?.canvas?.classList.contains('visible')) {
+            isStreamVisible = true;
+        }
+
+		if (!document.fullscreenElement) {
+			if (globalState.isRunning && isStreamVisible) {
+                if (streamArea.requestFullscreen) {
+                    streamArea.requestFullscreen().catch(e => {
+                        appendLog(`Fullscreen error (pin toggle): ${e.message}`, true);
+                    });
+                } else if (streamArea.mozRequestFullScreen) { streamArea.mozRequestFullScreen();
+                } else if (streamArea.webkitRequestFullscreen) { streamArea.webkitRequestFullscreen();
+                } else if (streamArea.msRequestFullscreen) { streamArea.msRequestFullscreen(); }
             }
 		} else if (document.fullscreenElement) {
-            document.exitFullscreen();
+            if (document.exitFullscreen) { document.exitFullscreen();
+            } else if (document.mozCancelFullScreen) { document.mozCancelFullScreen();
+            } else if (document.webkitExitFullscreen) { document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) { document.msExitFullscreen(); }
         }
 	} else {
 		globalState.isTaskbarPinned = !globalState.isTaskbarPinned;
 		if (elements.taskbar) elements.taskbar.classList.toggle('pinned', globalState.isTaskbarPinned);
 		updatePinToggleIcon();
 	}
+
 	if (globalState.isTaskbarPinned) {
 		showTaskbar();
 		clearTimeout(globalState.taskbarHideTimeout);
@@ -284,14 +302,14 @@ export function initTaskbarControls() {
 	        updateSpeakerIconFromVolume(volumeValue);
 	        globalState.pendingVolumeValue = volumeValue;
 	        const now = Date.now();
-	        if (now - globalState.lastVolumeSendTime > C.VOLUME_THROTTLE_MS) {
+	        if (now - globalState.lastVolumeSendTime > VOLUME_THROTTLE_MS) {
 		        if (globalState.volumeChangeTimeout) clearTimeout(globalState.volumeChangeTimeout);
 		        sendVolumeUpdateInternal(volumeValue);
 	        } else if (!globalState.volumeChangeTimeout) {
                 globalState.volumeChangeTimeout = setTimeout(() => {
 			        if (globalState.pendingVolumeValue !== null) sendVolumeUpdateInternal(globalState.pendingVolumeValue);
 			        globalState.volumeChangeTimeout = null;
-		        }, C.VOLUME_THROTTLE_MS - (now - globalState.lastVolumeSendTime));
+		        }, VOLUME_THROTTLE_MS - (now - globalState.lastVolumeSendTime));
             }
         });
         const sendFinalVolume = () => {
