@@ -40,7 +40,8 @@ jobs:
           mkdir -p scrcpy-desktop/public/dist
           cp -r public/dist/* scrcpy-desktop/public/dist/
           echo "Copying vendor files (public/vendor)..."
-          cp -r public/vendor scrcpy-desktop/public/
+          mkdir -p scrcpy-desktop/public/vendor
+          cp -r public/vendor/* scrcpy-desktop/public/vendor/
           echo "Copying package files (package.json, package-lock.json)..."
           cp package.json package-lock.json scrcpy-desktop/
           echo "Copying simplified start scripts (start.bat, start.sh)..."

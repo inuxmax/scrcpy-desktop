@@ -104,7 +104,7 @@ export function initializeVideoPlayback() {
             else { appendLog('Broadway Player class not available.', true); return; }
         }
         globalState.broadwayPlayer = new BroadwayPlayerInstance({
-            useWorker: true, workerFile: 'vendor/broadway/Decoder.js', webgl: 'auto', reuseMemory: true
+            useWorker: true, workerFile: 'vendor/node_modules/broadway-player/Player/Decoder.js', webgl: 'auto', reuseMemory: true
         });
         if (!globalState.broadwayPlayer || !globalState.broadwayPlayer.canvas) {
             appendLog('Broadway: Player or player.canvas is null!', true); globalState.broadwayPlayer = null; return;
