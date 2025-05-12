@@ -22,6 +22,7 @@ function getStreamSettings() {
         rotationLock: elements.rotationLockSelect.value,
         resolution: elements.customResolutionInput.value.trim() || elements.resolutionSelect.value,
         dpi: elements.customDpiInput.value.trim() || elements.dpiSelect.value,
+        decoderType: elements.decoderTypeSelect.value, 
     };
 }
 

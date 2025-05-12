@@ -43,7 +43,8 @@
                 <h3>Decoder</h3>
                 <label for="decoderType">Decoder Type:</label>
                 <select id="decoderType">
-                    <option value="mse" selected>MSE (H264-Converter)</option>
+                    <option value="webcodecs" selected>WebCodecs (Recommended)</option>
+                    <option value="mse">MSE (H264-Converter)</option>
                     <option value="broadway">WebGL (Broadway)</option>
                 </select>
             </div>
@@ -148,6 +149,7 @@
                 <div id="videoPlaceholder">Waiting for stream...</div>
                 <video id="screen" autoplay disablePictureInPicture disableRemotePlayback></video>
                 <canvas id="broadwayCanvas" style="display: none; width: 100%; height: 100%; object-fit: contain; background: var(--video-bg);"></canvas>
+                <canvas id="webcodecCanvas" style="display: none; width: 100%; height: 100%; object-fit: contain; background: var(--video-bg);"></canvas>
                 <div id="videoBorder"></div>
                 <div class="custom-taskbar">
                     <div class="taskbar-main-content">

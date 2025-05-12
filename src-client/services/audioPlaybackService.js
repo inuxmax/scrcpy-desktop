@@ -3,7 +3,7 @@ import { elements } from '../domElements.js';
 import { appendLog } from '../loggerService.js';
 import * as C from '../constants.js';
 
-export function setupAudioPlayer(codecId, metadata) {
+export function setupAudioPlayer(codecId, metadata, audioConfigData = null) {
 	if (codecId !== C.CODEC_IDS.AAC) {
         appendLog(`Unsupported audio codec ID: ${codecId}`, true);
         return;
@@ -14,9 +14,14 @@ export function setupAudioPlayer(codecId, metadata) {
     }
 	try {
 		if (!globalState.audioContext || globalState.audioContext.state === 'closed') {
-            globalState.audioContext = new AudioContext({ sampleRate: metadata.sampleRate || 48000 });
+            globalState.audioContext = new AudioContext({ sampleRate: metadata?.sampleRate || 48000 });
         }
-		globalState.audioDecoder = new AudioDecoder({
+		
+        if (globalState.webCodecsAudioDecoder && globalState.webCodecsAudioDecoder.state !== 'closed') {
+            globalState.webCodecsAudioDecoder.close();
+        }
+
+		globalState.webCodecsAudioDecoder = new AudioDecoder({
 			output: (audioData) => {
 				try {
 					if (!globalState.audioContext || globalState.audioContext.state === 'closed') return;
@@ -41,7 +46,7 @@ export function setupAudioPlayer(codecId, metadata) {
 					source.connect(globalState.audioContext.destination);
 					const currentTime = globalState.audioContext.currentTime;
 					const bufferDuration = audioData.numberOfFrames / sampleRate;
-                    const videoTime = elements.videoElement ? elements.videoElement.currentTime : 0;
+                    const videoTime = (globalState.decoderType === 'mse' && elements.videoElement) ? elements.videoElement.currentTime : 0;
 
 					if (!globalState.receivedFirstAudioPacket) {
 						globalState.nextAudioTime = Math.max(currentTime, videoTime);
@@ -60,45 +65,47 @@ export function setupAudioPlayer(codecId, metadata) {
                 appendLog(`AudioDecoder error: ${error.message}`, true);
             },
 		});
-		globalState.audioDecoder.configure({
-			codec: 'mp4a.40.2',
-			sampleRate: metadata.sampleRate || 48000,
-			numberOfChannels: metadata.channelConfig || 2
-		});
+
+        const config = {
+			codec: 'mp4a.40.2', 
+			sampleRate: metadata?.sampleRate || 48000,
+			numberOfChannels: metadata?.channelConfig || 2
+		};
+        if (audioConfigData) {
+            config.description = audioConfigData;
+        }
+
+		globalState.webCodecsAudioDecoder.configure(config);
 		globalState.audioCodecId = codecId;
 		globalState.audioMetadata = metadata;
 		globalState.receivedFirstAudioPacket = false;
 		globalState.nextAudioTime = 0;
 		globalState.totalAudioFrames = 0;
-        appendLog('Audio player initialized.');
+        appendLog('Audio player initialized for WebCodecs.');
 	} catch (e) {
 		appendLog(`Error setting up audio player: ${e.message}`, true);
-		globalState.audioDecoder = null;
+		globalState.webCodecsAudioDecoder = null;
 		globalState.audioContext = null;
 	}
 }
 
-export function handleAudioData(arrayBuffer) {
-	if (!globalState.audioDecoder || !globalState.isRunning || globalState.audioCodecId !== C.CODEC_IDS.AAC || arrayBuffer.byteLength === 0) return;
+export function handleAudioData(arrayBuffer, timestamp) {
+	if (!globalState.webCodecsAudioDecoder || !globalState.isRunning || globalState.audioCodecId !== C.CODEC_IDS.AAC || arrayBuffer.byteLength === 0) return;
 	try {
-		const uint8Array = new Uint8Array(arrayBuffer);
-		const sampleRate = globalState.audioMetadata?.sampleRate || 48000;
-		const frameDuration = 1024 / sampleRate * 1000000;
-		globalState.audioDecoder.decode(new EncodedAudioChunk({
-			type: 'key',
-			timestamp: globalState.totalAudioFrames * frameDuration,
-			data: uint8Array
+		globalState.webCodecsAudioDecoder.decode(new EncodedAudioChunk({
+			type: 'key', 
+			timestamp: timestamp, 
+			data: arrayBuffer
 		}));
-		globalState.totalAudioFrames += 1024;
 	} catch (e) {
         appendLog(`Error decoding audio data: ${e.message}`, true);
     }
 }
 
 export function closeAudio() {
-    if (globalState.audioDecoder) {
-		if (globalState.audioDecoder.state !== 'closed') globalState.audioDecoder.close();
-		globalState.audioDecoder = null;
+    if (globalState.webCodecsAudioDecoder) {
+		if (globalState.webCodecsAudioDecoder.state !== 'closed') globalState.webCodecsAudioDecoder.close();
+		globalState.webCodecsAudioDecoder = null;
 	}
 	if (globalState.audioContext) {
 		if (globalState.audioContext.state !== 'closed') globalState.audioContext.close();

@@ -5,12 +5,14 @@ import * as C from '../constants.js';
 
 function getScaledCoordinates(event) {
 	let targetElement;
-	if (globalState.decoderType === 'broadway') {
+	if (globalState.decoderType === C.DECODER_TYPES.BROADWAY) {
 		targetElement = globalState.broadwayPlayer ? globalState.broadwayPlayer.canvas : null;
         if (!targetElement) {
             targetElement = elements.broadwayCanvas;
         }
-	} else {
+	} else if (globalState.decoderType === C.DECODER_TYPES.WEBCODECS) {
+        targetElement = elements.webcodecCanvas;
+    } else { // MSE or default
 		targetElement = elements.videoElement;
 	}
 
@@ -81,15 +83,24 @@ function sendBackButtonControlInternal() {
 
 function handleMouseDown(event) {
 	if (!globalState.isRunning || !globalState.controlEnabledAtStart || !globalState.deviceWidth || !globalState.deviceHeight) return;
-    const activeRenderingElement = globalState.decoderType === 'broadway' ? (globalState.broadwayPlayer ? globalState.broadwayPlayer.canvas : null) : elements.videoElement;
+    
+    let activeRenderingElement;
+    if (globalState.decoderType === C.DECODER_TYPES.BROADWAY) {
+        activeRenderingElement = globalState.broadwayPlayer ? globalState.broadwayPlayer.canvas : elements.broadwayCanvas;
+    } else if (globalState.decoderType === C.DECODER_TYPES.WEBCODECS) {
+        activeRenderingElement = elements.webcodecCanvas;
+    } else { // MSE or default
+        activeRenderingElement = elements.videoElement;
+    }
+
     if (!activeRenderingElement || !event.target || (event.target !== activeRenderingElement && !activeRenderingElement.contains(event.target))) {
-        if (event.target !== elements.streamArea) return; // Allow clicks on streamArea itself if no specific element is hit
+        if (event.target !== elements.streamArea) return; 
     }
 
 	event.preventDefault();
 	globalState.isMouseDown = true;
 
-    if (event.button === 2) { // Right-click
+    if (event.button === 2) { 
         sendBackButtonControlInternal();
         globalState.isMouseDown = false;
         globalState.currentMouseButtons = 0;
@@ -158,7 +169,15 @@ function handleMouseLeave(event) {
 function handleWheelEvent(event) {
     if (!globalState.isRunning || !globalState.controlEnabledAtStart || !globalState.deviceWidth || globalState.deviceWidth <= 0 || !globalState.deviceHeight || globalState.deviceHeight <= 0) return;
     
-    const activeRenderingElement = globalState.decoderType === 'broadway' ? (globalState.broadwayPlayer ? globalState.broadwayPlayer.canvas : null) : elements.videoElement;
+    let activeRenderingElement;
+    if (globalState.decoderType === C.DECODER_TYPES.BROADWAY) {
+        activeRenderingElement = globalState.broadwayPlayer ? globalState.broadwayPlayer.canvas : elements.broadwayCanvas;
+    } else if (globalState.decoderType === C.DECODER_TYPES.WEBCODECS) {
+        activeRenderingElement = elements.webcodecCanvas;
+    } else { // MSE or default
+        activeRenderingElement = elements.videoElement;
+    }
+
     if (!activeRenderingElement || !event.target || (event.target !== activeRenderingElement && !activeRenderingElement.contains(event.target))) {
        return;
     }
@@ -209,10 +228,14 @@ export function initInputService() {
         elements.streamArea.addEventListener('mouseleave', handleMouseLeave);
         elements.streamArea.addEventListener('wheel', handleWheelEvent, { passive: false });
         elements.streamArea.addEventListener('contextmenu', (e) => {
-
-            const activeRenderingElement = globalState.decoderType === 'broadway' 
-                ? (globalState.broadwayPlayer ? globalState.broadwayPlayer.canvas : null) 
-                : elements.videoElement;
+            let activeRenderingElement;
+            if (globalState.decoderType === C.DECODER_TYPES.BROADWAY) {
+                activeRenderingElement = globalState.broadwayPlayer ? globalState.broadwayPlayer.canvas : elements.broadwayCanvas;
+            } else if (globalState.decoderType === C.DECODER_TYPES.WEBCODECS) {
+                activeRenderingElement = elements.webcodecCanvas;
+            } else { // MSE or default
+                activeRenderingElement = elements.videoElement;
+            }
             
             if (globalState.controlEnabledAtStart && globalState.isRunning && activeRenderingElement && 
                 (e.target === activeRenderingElement || activeRenderingElement.contains(e.target))) {

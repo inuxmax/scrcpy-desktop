@@ -40,24 +40,37 @@ class BitReader {
 	}
 }
 
-function parseSPS(naluBuffer) {
-	if (!naluBuffer || naluBuffer.length < 1) return null;
+function parseSPS(naluBufferWithStartCode) {
+	if (!naluBufferWithStartCode || naluBufferWithStartCode.length < 1) return null;
 	let offset = 0;
-	if (naluBuffer.length >= 3 && naluBuffer[0] === 0 && naluBuffer[1] === 0) {
-		if (naluBuffer[2] === 1) offset = 3;
-		else if (naluBuffer.length >= 4 && naluBuffer[2] === 0 && naluBuffer[3] === 1) offset = 4;
-	}
-	const rbspBuffer = naluBuffer.subarray(offset); if (rbspBuffer.length < 1) return null;
+    if (naluBufferWithStartCode.length >= 4 && naluBufferWithStartCode[0] === 0 && naluBufferWithStartCode[1] === 0 && naluBufferWithStartCode[2] === 0 && naluBufferWithStartCode[3] === 1) {
+        offset = 4;
+    } else if (naluBufferWithStartCode.length >= 3 && naluBufferWithStartCode[0] === 0 && naluBufferWithStartCode[1] === 0 && naluBufferWithStartCode[2] === 1) {
+        offset = 3;
+    }
+
+	const rbspBuffer = naluBufferWithStartCode.subarray(offset); if (rbspBuffer.length < 4) return null;
 	const nal_unit_type = rbspBuffer[0] & 0x1F; if (nal_unit_type !== 7) return null;
-	const reader = new BitReader(rbspBuffer.subarray(1));
+    
+    const profile_idc_val = rbspBuffer[1];
+    const profile_compatibility_val = rbspBuffer[2];
+    const level_idc_val = rbspBuffer[3];
+
+	const reader = new BitReader(rbspBuffer.subarray(1)); 
 	try {
-		const profile_idc = reader.readBits(8); reader.readBits(8); reader.readBits(8); reader.readUE();
+		const profile_idc = reader.readBits(8); 
+        const constraint_set_flags = reader.readBits(8); 
+        const level_idc = reader.readBits(8); 
+        reader.readUE(); 
+
 		if (profile_idc === null) return null;
 		let chroma_format_idc = 1, separate_colour_plane_flag = 0;
 		if ([100, 110, 122, 244, 44, 83, 86, 118, 128, 138, 139, 134, 135].includes(profile_idc)) {
 			chroma_format_idc = reader.readUE(); if (chroma_format_idc === null || chroma_format_idc > 3) return null;
 			if (chroma_format_idc === 3) { separate_colour_plane_flag = reader.readBool(); if (separate_colour_plane_flag === null) return null; }
-			reader.readUE(); reader.readUE(); reader.readBool();
+			reader.readUE(); 
+            reader.readUE(); 
+            reader.readBool(); 
 			const seq_scaling_matrix_present_flag = reader.readBool(); if (seq_scaling_matrix_present_flag === null) return null;
 			if (seq_scaling_matrix_present_flag) {
 				const limit = (chroma_format_idc !== 3) ? 8 : 12;
@@ -69,17 +82,22 @@ function parseSPS(naluBuffer) {
 							lastScale = (nextScale === 0) ? lastScale : nextScale;
 						}}}}
 		}
-		reader.readUE(); const pic_order_cnt_type = reader.readUE(); if (pic_order_cnt_type === null) return null;
-		if (pic_order_cnt_type === 0) reader.readUE();
+		reader.readUE(); 
+        const pic_order_cnt_type = reader.readUE(); if (pic_order_cnt_type === null) return null;
+		if (pic_order_cnt_type === 0) reader.readUE(); 
 		else if (pic_order_cnt_type === 1) {
-			reader.readBool(); reader.readSE(); reader.readSE();
+			reader.readBool(); 
+            reader.readSE(); 
+            reader.readSE(); 
 			const num_ref_frames_in_pic_order_cnt_cycle = reader.readUE(); if (num_ref_frames_in_pic_order_cnt_cycle === null) return null;
 			for (let i = 0; i < num_ref_frames_in_pic_order_cnt_cycle; i++) reader.readSE();
 		}
-		reader.readUE(); reader.readBool();
+		reader.readUE(); 
+        reader.readBool(); 
 		const pic_width_in_mbs_minus1 = reader.readUE(); const pic_height_in_map_units_minus1 = reader.readUE(); const frame_mbs_only_flag = reader.readBool();
 		if (pic_width_in_mbs_minus1 === null || pic_height_in_map_units_minus1 === null || frame_mbs_only_flag === null) return null;
-		if (!frame_mbs_only_flag) reader.readBool(); reader.readBool();
+		if (!frame_mbs_only_flag) reader.readBool(); 
+        reader.readBool(); 
 		const frame_cropping_flag = reader.readBool(); if (frame_cropping_flag === null) return null;
 		let frame_crop_left_offset = 0, frame_crop_right_offset = 0, frame_crop_top_offset = 0, frame_crop_bottom_offset = 0;
 		if (frame_cropping_flag) {
@@ -97,12 +115,13 @@ function parseSPS(naluBuffer) {
 			width -= (frame_crop_left_offset + frame_crop_right_offset) * cropUnitX;
 			height -= (frame_crop_top_offset + frame_crop_bottom_offset) * cropUnitY;
 		}
-		return { width, height };
-	} catch (e) { return null; }
+		return { width, height, profile_idc: profile_idc_val, profile_compatibility: profile_compatibility_val, level_idc: level_idc_val };
+	} catch (e) { log(C.LogLevel.WARN, `Error parsing SPS: ${e.message}`); return null; }
 }
 
 function parseAudioSpecificConfig(buffer) {
-	let offset = 0, bits = 0, bitCount = 0;
+    if (!buffer || buffer.length === 0) return null;
+    let offset = 0, bits = 0, bitCount = 0;
 	function readBits(numBits) {
 		while (bitCount < numBits) { bits = (bits << 8) | buffer[offset++]; bitCount += 8; }
 		bitCount -= numBits; const result = (bits >> bitCount) & ((1 << numBits) - 1);
@@ -115,8 +134,9 @@ function parseAudioSpecificConfig(buffer) {
 	if (!C.PROFILE_MAP[objectType]) throw new Error(`Unsupported AAC object type: ${objectType}`);
 	if (!sampleRate) throw new Error(`Unsupported sample rate index: ${sampleRateIndex}`);
 	if (channelConfig < 1 || channelConfig > 7) throw new Error(`Unsupported channel configuration: ${channelConfig}`);
-	return { profile: C.PROFILE_MAP[objectType], sampleRateIndex, sampleRate, channelConfig };
+	return { profile: C.PROFILE_MAP[objectType], sampleRateIndex, sampleRate, channelConfig, rawASC: buffer };
 }
+
 
 function createAdtsHeader(aacFrameLength, metadata) {
 	const { profile, sampleRateIndex, channelConfig } = metadata;
@@ -148,28 +168,29 @@ function _handleAwaitingInitialData(socket, dynBuffer, session, client) {
 function _handleAwaitingMetadata(socket, dynBuffer, session, client) {
     let identifiedThisPass = false;
     if (!session.videoSocket && session.expectedSockets.includes('video')) {
-        if (dynBuffer.length >= C.VIDEO_METADATA_LENGTH) {
+        if (dynBuffer.length >= C.VIDEO_METADATA_LENGTH_H264) { 
             const potentialCodecId = dynBuffer.buffer.readUInt32BE(0);
             if (potentialCodecId === C.CODEC_IDS.H264) {
                 const width = dynBuffer.buffer.readUInt32BE(4); const height = dynBuffer.buffer.readUInt32BE(8);
-                log(C.LogLevel.INFO, `[Session ${session.scid}] Identified Video socket (${width}x${height})`);
+                log(C.LogLevel.INFO, `[Session ${session.scid}] Identified Video socket (${width}x${height}) for ${session.decoderType}`);
                 session.videoSocket = socket; socket.type = 'video'; identifiedThisPass = true;
                 session.unidentifiedSockets?.delete(socket.remoteId);
+                session.currentWidth = width; session.currentHeight = height;
                 client.ws.send(JSON.stringify({ type: C.MESSAGE_TYPES.VIDEO_INFO, codecId: potentialCodecId, width, height }));
-                dynBuffer.buffer.copy(dynBuffer.buffer, 0, C.VIDEO_METADATA_LENGTH, dynBuffer.length);
-                dynBuffer.length -= C.VIDEO_METADATA_LENGTH; socket.state = 'STREAMING';
+                dynBuffer.buffer.copy(dynBuffer.buffer, 0, C.VIDEO_METADATA_LENGTH_H264, dynBuffer.length);
+                dynBuffer.length -= C.VIDEO_METADATA_LENGTH_H264; socket.state = 'STREAMING';
                 checkAndSendStreamingStarted(session, client);
             }}}
     if (!identifiedThisPass && !session.audioSocket && session.expectedSockets.includes('audio')) {
-        if (dynBuffer.length >= C.AUDIO_METADATA_LENGTH) {
+        if (dynBuffer.length >= C.AUDIO_METADATA_LENGTH_AAC) {
             const potentialCodecId = dynBuffer.buffer.readUInt32BE(0);
             if (potentialCodecId === C.CODEC_IDS.AAC) {
                 log(C.LogLevel.INFO, `[Session ${session.scid}] Identified Audio socket`);
                 session.audioSocket = socket; socket.type = 'audio'; socket.codecProcessed = true; identifiedThisPass = true;
                 session.unidentifiedSockets?.delete(socket.remoteId);
                 client.ws.send(JSON.stringify({ type: C.MESSAGE_TYPES.AUDIO_INFO, codecId: potentialCodecId }));
-                dynBuffer.buffer.copy(dynBuffer.buffer, 0, C.AUDIO_METADATA_LENGTH, dynBuffer.length);
-                dynBuffer.length -= C.AUDIO_METADATA_LENGTH; socket.state = 'STREAMING';
+                dynBuffer.buffer.copy(dynBuffer.buffer, 0, C.AUDIO_METADATA_LENGTH_AAC, dynBuffer.length);
+                dynBuffer.length -= C.AUDIO_METADATA_LENGTH_AAC; socket.state = 'STREAMING';
                 checkAndSendStreamingStarted(session, client);
             }}}
     if (!identifiedThisPass && !session.controlSocket && session.expectedSockets.length === 1 && session.expectedSockets[0] === 'control' && socket.didHandleDeviceName) {
@@ -199,25 +220,181 @@ function _handleAwaitingMetadata(socket, dynBuffer, session, client) {
     }
 }
 
+function extractNaluPayload(naluWithStartCode) {
+    if (!naluWithStartCode || naluWithStartCode.length < 3) return naluWithStartCode;
+    if (naluWithStartCode[0] === 0 && naluWithStartCode[1] === 0) {
+        if (naluWithStartCode[2] === 1) return naluWithStartCode.subarray(3);
+        if (naluWithStartCode.length > 3 && naluWithStartCode[2] === 0 && naluWithStartCode[3] === 1) return naluWithStartCode.subarray(4);
+    }
+    return naluWithStartCode; 
+}
+
+function extractSingleNalu(buffer, naluTypeToFind) {
+    let offset = 0;
+    const pattern3Byte = Buffer.from([0x00, 0x00, 0x01]);
+    const pattern4Byte = Buffer.from([0x00, 0x00, 0x00, 0x01]);
+
+    while (offset < buffer.length) {
+        let startCodeOffset = -1;
+        let startCodeLength = 0;
+
+        let idx4 = buffer.indexOf(pattern4Byte, offset);
+        let idx3 = buffer.indexOf(pattern3Byte, offset);
+
+        if (idx4 !== -1 && (idx3 === -1 || idx4 < idx3)) {
+            startCodeOffset = idx4;
+            startCodeLength = 4;
+        } else if (idx3 !== -1) {
+            startCodeOffset = idx3;
+            startCodeLength = 3;
+        } else {
+            break; 
+        }
+        
+        if (startCodeOffset + startCodeLength >= buffer.length) break;
+
+        const currentNaluType = buffer[startCodeOffset + startCodeLength] & 0x1F;
+        if (currentNaluType === naluTypeToFind) {
+            let nextNaluStart = -1;
+            let nextIdx4 = buffer.indexOf(pattern4Byte, startCodeOffset + startCodeLength);
+            let nextIdx3 = buffer.indexOf(pattern3Byte, startCodeOffset + startCodeLength);
+
+            if (nextIdx4 !== -1 && (nextIdx3 === -1 || nextIdx4 < nextIdx3)) {
+                nextNaluStart = nextIdx4;
+            } else if (nextIdx3 !== -1) {
+                nextNaluStart = nextIdx3;
+            }
+
+            if (nextNaluStart !== -1) {
+                return buffer.subarray(startCodeOffset, nextNaluStart);
+            } else {
+                return buffer.subarray(startCodeOffset); 
+            }
+        }
+        offset = startCodeOffset + startCodeLength; 
+    }
+    return null;
+}
+
+
+function createAVCC(spsNaluWithStartCode, ppsNaluWithStartCode) {
+    if (!spsNaluWithStartCode || !ppsNaluWithStartCode) {
+        log(C.LogLevel.WARN, `createAVCC: SPS or PPS NALU (with start code) is missing.`);
+        return null;
+    }
+
+    const sps = extractNaluPayload(spsNaluWithStartCode);
+    const pps = extractNaluPayload(ppsNaluWithStartCode);
+    
+    if (sps.length === 0 || pps.length === 0) {
+        log(C.LogLevel.WARN, `createAVCC: SPS or PPS data is empty after attempting to strip start codes. Original SPS len: ${spsNaluWithStartCode.length}, PPS len: ${ppsNaluWithStartCode.length}`);
+        return null;
+    }
+     if (sps.length < 4) { 
+        log(C.LogLevel.WARN, `createAVCC: SPS data too short after stripping. Length: ${sps.length}`);
+        return null;
+    }
+
+
+    const avccBox = Buffer.alloc(
+        1 + 3 + 1 + 1 + 2 + sps.length + 1 + 2 + pps.length
+    );
+
+    let offset = 0;
+    avccBox.writeUInt8(1, offset++); 
+    avccBox.writeUInt8(sps[1], offset++); 
+    avccBox.writeUInt8(sps[2], offset++); 
+    avccBox.writeUInt8(sps[3], offset++); 
+    avccBox.writeUInt8(0xFC | 3, offset++); 
+    
+    avccBox.writeUInt8(0xE0 | 1, offset++); 
+    avccBox.writeUInt16BE(sps.length, offset); offset += 2;
+    sps.copy(avccBox, offset); offset += sps.length;
+    
+    avccBox.writeUInt8(1, offset++); 
+    avccBox.writeUInt16BE(pps.length, offset); offset += 2;
+    pps.copy(avccBox, offset); offset += pps.length;
+    
+    return avccBox.subarray(0, offset);
+}
+
+
 function _processVideoStreamPacket(socket, dynBuffer, session, client) {
     if (dynBuffer.length >= C.PACKET_HEADER_LENGTH) {
-        const configFlag = (dynBuffer.buffer.readUInt8(0) >> 7) & 0x1;
+        const firstByte = dynBuffer.buffer.readUInt8(0);
+        const configFlagInt = (firstByte >> 7) & 0x1;
+        const keyFrameFlagInt = (firstByte >> 6) & 0x1;
         const pts = dynBuffer.buffer.readBigInt64BE(0) & BigInt('0x3FFFFFFFFFFFFFFF');
         const packetSize = dynBuffer.buffer.readUInt32BE(8);
+
         if (packetSize > 10 * 1024 * 1024 || packetSize < 0) { log(C.LogLevel.ERROR, `[TCP Video ${socket.scid}] Invalid packet size: ${packetSize}`); socket.state = 'UNKNOWN'; socket.destroy(); return false; }
         const totalPacketLength = C.PACKET_HEADER_LENGTH + packetSize;
+
         if (dynBuffer.length >= totalPacketLength) {
             const payload = dynBuffer.buffer.subarray(C.PACKET_HEADER_LENGTH, totalPacketLength);
-            if (configFlag) {
-                const resolutionInfo = parseSPS(payload);
-                if (resolutionInfo) {
-                    const newWidth = resolutionInfo.width, newHeight = resolutionInfo.height;
-                    if (session.currentWidth !== newWidth || session.currentHeight !== newHeight) {
-                        session.currentWidth = newWidth; session.currentHeight = newHeight;
-                        if (client && client.ws?.readyState === WebSocket.OPEN) client.ws.send(JSON.stringify({ type: C.MESSAGE_TYPES.RESOLUTION_CHANGE, width: newWidth, height: newHeight }));
-                    }}}
-            const typeBuffer = Buffer.alloc(1); typeBuffer.writeUInt8(C.BINARY_TYPES.VIDEO, 0);
-            client.ws.send(Buffer.concat([typeBuffer, payload]), { binary: true });
+            
+            if (session.decoderType === 'webcodecs') {
+                let packetType;
+                if (configFlagInt) {
+                    log(C.LogLevel.DEBUG, `[TCP Video ${socket.scid}] Received config packet for WebCodecs. Payload length: ${payload.length}`);
+                    packetType = C.BINARY_PACKET_TYPES.WC_VIDEO_CONFIG_H264;
+                    
+                    const spsNaluWithStartCode = extractSingleNalu(payload, 7); 
+                    const ppsNaluWithStartCode = extractSingleNalu(payload, 8); 
+
+                    if (spsNaluWithStartCode && ppsNaluWithStartCode) {
+                        log(C.LogLevel.DEBUG, `[TCP Video ${socket.scid}] Extracted SPS (len ${spsNaluWithStartCode.length}) and PPS (len ${ppsNaluWithStartCode.length}) from config payload.`);
+                        const avcc = createAVCC(spsNaluWithStartCode, ppsNaluWithStartCode);
+                        const spsData = parseSPS(spsNaluWithStartCode);
+
+                        if (avcc && spsData) {
+                            const header = Buffer.alloc(1 + 3); 
+                            header.writeUInt8(packetType, 0);
+                            header.writeUInt8(spsData.profile_idc, 1);
+                            header.writeUInt8(spsData.profile_compatibility, 2);
+                            header.writeUInt8(spsData.level_idc, 3);
+
+                            client.ws.send(Buffer.concat([header, avcc]), { binary: true });
+                            log(C.LogLevel.INFO, `[TCP Video ${socket.scid}] Sent AVCC config (len ${avcc.length}) with SPS info to client.`);
+                        } else {
+                             log(C.LogLevel.WARN, `[TCP Video ${socket.scid}] Failed to create AVCC or parse SPS from extracted NALUs. AVCC: ${!!avcc}, SPSData: ${!!spsData}`);
+                        }
+                        if (spsData) { 
+                            const newWidth = spsData.width, newHeight = spsData.height;
+                            if (session.currentWidth !== newWidth || session.currentHeight !== newHeight) {
+                                log(C.LogLevel.INFO, `[TCP Video ${socket.scid}] Resolution change from config: ${newWidth}x${newHeight}`);
+                                session.currentWidth = newWidth; session.currentHeight = newHeight;
+                                if (client && client.ws?.readyState === WebSocket.OPEN) client.ws.send(JSON.stringify({ type: C.MESSAGE_TYPES.RESOLUTION_CHANGE, width: newWidth, height: newHeight }));
+                            }
+                        }
+                    } else {
+                        log(C.LogLevel.WARN, `[TCP Video ${socket.scid}] Could not extract SPS/PPS from config packet payload. SPS: ${!!spsNaluWithStartCode}, PPS: ${!!ppsNaluWithStartCode}. Config Payload length: ${payload.length}`);
+                    }
+                } else {
+                    packetType = keyFrameFlagInt ? C.BINARY_PACKET_TYPES.WC_VIDEO_KEY_FRAME_H264 : C.BINARY_PACKET_TYPES.WC_VIDEO_DELTA_FRAME_H264;
+                    const header = Buffer.alloc(1 + 8); 
+                    header.writeUInt8(packetType, 0);
+                    header.writeBigUInt64BE(pts, 1); 
+                    client.ws.send(Buffer.concat([header, payload]), { binary: true });
+                }
+            } else { 
+                if (configFlagInt) {
+                     const spsNaluFromLegacy = extractSingleNalu(payload, 7);
+                     if (spsNaluFromLegacy) {
+                        const resolutionInfo = parseSPS(spsNaluFromLegacy);
+                        if (resolutionInfo) {
+                            const newWidth = resolutionInfo.width, newHeight = resolutionInfo.height;
+                            if (session.currentWidth !== newWidth || session.currentHeight !== newHeight) {
+                                session.currentWidth = newWidth; session.currentHeight = newHeight;
+                                if (client && client.ws?.readyState === WebSocket.OPEN) client.ws.send(JSON.stringify({ type: C.MESSAGE_TYPES.RESOLUTION_CHANGE, width: newWidth, height: newHeight }));
+                            }
+                        }
+                     }
+                }
+                const typeBuffer = Buffer.alloc(1); typeBuffer.writeUInt8(C.BINARY_PACKET_TYPES.LEGACY_VIDEO_H264, 0);
+                client.ws.send(Buffer.concat([typeBuffer, payload]), { binary: true });
+            }
+
             dynBuffer.buffer.copy(dynBuffer.buffer, 0, totalPacketLength, dynBuffer.length);
             dynBuffer.length -= totalPacketLength; return true;
         }}
@@ -226,37 +403,52 @@ function _processVideoStreamPacket(socket, dynBuffer, session, client) {
 
 function _processAudioStreamPacket(socket, dynBuffer, session, client) {
     if (dynBuffer.length >= C.PACKET_HEADER_LENGTH) {
-        const configFlag = (dynBuffer.buffer.readUInt8(0) >> 7) & 0x1;
+        const firstByte = dynBuffer.buffer.readUInt8(0);
+        const configFlagInt = (firstByte >> 7) & 0x1;
+        const pts = dynBuffer.buffer.readBigInt64BE(0) & BigInt('0x3FFFFFFFFFFFFFFF');
         const packetSize = dynBuffer.buffer.readUInt32BE(8);
+
         if (packetSize > 10 * 1024 * 1024 || packetSize < 0) { log(C.LogLevel.ERROR, `[TCP Audio ${socket.scid}] Invalid packet size: ${packetSize}`); socket.state = 'UNKNOWN'; socket.destroy(); return false; }
         const totalPacketLength = C.PACKET_HEADER_LENGTH + packetSize;
+
         if (dynBuffer.length >= totalPacketLength) {
             const payload = dynBuffer.buffer.subarray(C.PACKET_HEADER_LENGTH, totalPacketLength);
-            if (configFlag && !session.audioMetadata) {
+            
+            if (configFlagInt) {
                 try {
                     session.audioMetadata = parseAudioSpecificConfig(payload);
-                    client.ws.send(JSON.stringify({ type: C.MESSAGE_TYPES.AUDIO_INFO, codecId: C.CODEC_IDS.AAC, metadata: session.audioMetadata }));
+                    if (session.audioMetadata && session.audioMetadata.rawASC) {
+                        const header = Buffer.alloc(1);
+                        header.writeUInt8(C.BINARY_PACKET_TYPES.WC_AUDIO_CONFIG_AAC, 0);
+                        client.ws.send(Buffer.concat([header, session.audioMetadata.rawASC]), { binary: true });
+                        log(C.LogLevel.DEBUG, `[TCP Audio ${socket.scid}] Sent ASC config to client.`);
+                    } else {
+                         log(C.LogLevel.ERROR, `[TCP Audio ${socket.scid}] Failed to get raw ASC from audio config.`);
+                    }
                 } catch (e) { log(C.LogLevel.ERROR, `[TCP Audio ${socket.scid}] Failed to parse audio config: ${e.message}`); socket.destroy(); return false; }
+            } else if (session.audioMetadata) { 
+                const header = Buffer.alloc(1 + 8);
+                header.writeUInt8(C.BINARY_PACKET_TYPES.WC_AUDIO_FRAME_AAC, 0);
+                header.writeBigUInt64BE(pts, 1);
+                client.ws.send(Buffer.concat([header, payload]), { binary: true });
             }
-            if (!configFlag && session.audioMetadata) {
-                const adtsHeader = createAdtsHeader(payload.length, session.audioMetadata);
-                const adtsFrame = Buffer.concat([adtsHeader, payload]);
-                const typeBuffer = Buffer.alloc(1); typeBuffer.writeUInt8(C.BINARY_TYPES.AUDIO, 0);
-                client.ws.send(Buffer.concat([typeBuffer, adtsFrame]), { binary: true });
-            }
+
+
             dynBuffer.buffer.copy(dynBuffer.buffer, 0, totalPacketLength, dynBuffer.length);
             dynBuffer.length -= totalPacketLength; return true;
         }}
     return false;
 }
 
+
 function _processControlStreamMessage(socket, dynBuffer, session, client) {
     if (dynBuffer.length > 0) {
         client.ws.send(JSON.stringify({ type: C.MESSAGE_TYPES.DEVICE_MESSAGE, data: dynBuffer.buffer.subarray(0, dynBuffer.length).toString('base64') }));
         dynBuffer.length = 0;
     }
-    return false;
+    return false; 
 }
+
 
 function _handleStreamingData(socket, dynBuffer, session, client) {
     if (!socket.type || socket.type === 'unknown') { socket.state = 'AWAITING_METADATA'; return true; }
@@ -401,9 +593,9 @@ function attemptIdentifyControlByDeduction(session, client) {
     }
 }
 
-async function setupScrcpySession(deviceId, scid, port, runOptions, clientId, displayMode, shouldTurnScreenOffOnStartPref, wsClientsRef) {
+async function setupScrcpySession(deviceId, scid, port, runOptions, clientId, displayMode, shouldTurnScreenOffOnStartPref, wsClientsRef, decoderType) {
     const session = {
-        deviceId, scid, port, clientId, options: runOptions, displayMode,
+        deviceId, scid, port, clientId, options: runOptions, displayMode, decoderType,
         tcpServer: null, processStream: null, tunnelActive: false,
         videoSocket: null, audioSocket: null, controlSocket: null,
         deviceNameReceived: false, expectedSockets: [], socketsConnected: 0,

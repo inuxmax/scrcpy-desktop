@@ -14,6 +14,8 @@ async function handleStart(clientId, ws, message) {
         return;
     }
     const deviceId = message.deviceId;
+    const decoderType = message.decoderType || 'mse'; 
+
     if (!deviceId) {
         ws.send(JSON.stringify({ type: C.MESSAGE_TYPES.ERROR, message: 'No device selected.' }));
         return;
@@ -57,7 +59,7 @@ async function handleStart(clientId, ws, message) {
 
         scid = (crypto.randomBytes(4).readUInt32BE(0) & 0x7FFFFFFF).toString(16).padStart(8, '0');
         const port = C.SERVER_PORT_BASE + (sessionManager.sessions.size % 1000);
-        const session = await sessionManager.setupScrcpySession(deviceId, scid, port, runOptions, clientId, message.displayMode, message.turnScreenOff || false, wsClients);
+        const session = await sessionManager.setupScrcpySession(deviceId, scid, port, runOptions, clientId, message.displayMode, message.turnScreenOff || false, wsClients, decoderType);
         if (session) session.androidVersion = androidVersion;
         client.session = scid;
         if (androidVersion < 11 && audioEnabled) ws.send(JSON.stringify({ type: C.MESSAGE_TYPES.STATUS, message: 'Audio disabled (Android < 11)'}));

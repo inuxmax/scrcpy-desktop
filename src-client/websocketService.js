@@ -2,9 +2,9 @@ import { globalState } from './state.js';
 import { appendLog, updateStatus } from './loggerService.js';
 import { populateDeviceSelect, requestAdbDevices as refreshAdbDevicesSidebar } from './ui/sidebarControls.js';
 import { handleStreamingStarted, handleStreamingStopped, handleResolutionChange, handleDeviceName, handleAudioInfo, handleBatteryInfo, handleVolumeInfo, handleWifiStatusResponse, handleNavResponse, handleLauncherAppsList, handleLaunchAppResponse } from './messageHandlers.js';
-import { BINARY_TYPES } from './constants.js';
-import { handleVideoData, handleVideoInfo as processVideoInfo } from './services/videoPlaybackService.js';
-import { handleAudioData as processAudioData } from './services/audioPlaybackService.js';
+import { BINARY_PACKET_TYPES, DECODER_TYPES } from './constants.js';
+import { handleVideoData as processVideoData, handleVideoInfo as processVideoInfo, configureWebCodecsVideoDecoder } from './services/videoPlaybackService.js';
+import { handleAudioData as processAudioData, setupAudioPlayer as setupAudioDecoder } from './services/audioPlaybackService.js';
 import { elements } from './domElements.js';
 
 export function initializeWebSocket() {
@@ -50,7 +50,7 @@ export function initializeWebSocket() {
             switch (message.type) {
                 case 'deviceName': handleDeviceName(message); break;
                 case 'videoInfo': processVideoInfo(message.width, message.height); break;
-                case 'audioInfo': handleAudioInfo(message); break;
+                case 'audioInfo': handleAudioInfo(message); break; 
                 case 'status':
                     updateStatus(message.message);
                     if (message.message === 'Streaming started') handleStreamingStarted();
@@ -83,15 +83,71 @@ export function initializeWebSocket() {
                     break;
             }
 		} else if (event.data instanceof ArrayBuffer && globalState.isRunning) {
-			const dataView = new DataView(event.data);
+			const arrayBuffer = event.data;
+			const dataView = new DataView(arrayBuffer);
 			if (dataView.byteLength < 1) return;
-			const type = dataView.getUint8(0);
-			const payload = event.data.slice(1);
+			const packetType = dataView.getUint8(0);
+            
+            let payload, timestamp, frameTypeStr;
+            const HEADER_LENGTH_TIMESTAMPED = 1 + 8; 
+            const HEADER_LENGTH_SPS_INFO = 1 + 1 + 1 + 1; // type + profile + compat + level
 
-			if (type === BINARY_TYPES.VIDEO && (globalState.converter || globalState.broadwayPlayer)) {
-                handleVideoData(payload);
-			} else if (type === BINARY_TYPES.AUDIO && elements.enableAudioInput.checked) {
-                processAudioData(payload);
+            switch (packetType) {
+                case BINARY_PACKET_TYPES.LEGACY_VIDEO_H264:
+                    payload = arrayBuffer.slice(1);
+                    if (globalState.decoderType === DECODER_TYPES.MSE || globalState.decoderType === DECODER_TYPES.BROADWAY) {
+                        processVideoData(payload);
+                    }
+                    break;
+                case BINARY_PACKET_TYPES.LEGACY_AUDIO_AAC_ADTS:
+                    payload = arrayBuffer.slice(1);
+                    // This path is now fully deprecated for audio, server always sends WC format
+                    break;
+                case BINARY_PACKET_TYPES.WC_VIDEO_CONFIG_H264:
+                    if (arrayBuffer.byteLength < HEADER_LENGTH_SPS_INFO) {
+                        appendLog("WebCodecs video config packet too short.", true);
+                        return;
+                    }
+                    const spsProfile = dataView.getUint8(1);
+                    const spsCompat = dataView.getUint8(2);
+                    const spsLevel = dataView.getUint8(3);
+                    payload = arrayBuffer.slice(HEADER_LENGTH_SPS_INFO);
+                    if (globalState.decoderType === DECODER_TYPES.WEBCODECS) {
+                        configureWebCodecsVideoDecoder(spsProfile, spsCompat, spsLevel, payload);
+                    }
+                    break;
+                case BINARY_PACKET_TYPES.WC_VIDEO_KEY_FRAME_H264:
+                case BINARY_PACKET_TYPES.WC_VIDEO_DELTA_FRAME_H264:
+                    if (arrayBuffer.byteLength < HEADER_LENGTH_TIMESTAMPED) {
+                        appendLog("WebCodecs video frame too short for header.", true);
+                        return;
+                    }
+                    timestamp = dataView.getBigUint64(1, false); 
+                    payload = arrayBuffer.slice(HEADER_LENGTH_TIMESTAMPED);
+                    frameTypeStr = (packetType === BINARY_PACKET_TYPES.WC_VIDEO_KEY_FRAME_H264) ? 'key' : 'delta';
+                    if (globalState.decoderType === DECODER_TYPES.WEBCODECS) {
+                        processVideoData(payload, Number(timestamp), frameTypeStr);
+                    }
+                    break;
+                case BINARY_PACKET_TYPES.WC_AUDIO_CONFIG_AAC:
+                    payload = arrayBuffer.slice(1);
+                    if (elements.enableAudioInput.checked) { // Audio always uses WebCodecs if enabled
+                         setupAudioDecoder(globalState.audioCodecId || 0x00616163, globalState.audioMetadata, payload);
+                    }
+                    break;
+                case BINARY_PACKET_TYPES.WC_AUDIO_FRAME_AAC:
+                     if (arrayBuffer.byteLength < HEADER_LENGTH_TIMESTAMPED) {
+                        appendLog("WebCodecs audio frame too short for header.", true);
+                        return;
+                    }
+                    timestamp = dataView.getBigUint64(1, false); 
+                    payload = arrayBuffer.slice(HEADER_LENGTH_TIMESTAMPED);
+                    if (elements.enableAudioInput.checked) { // Audio always uses WebCodecs if enabled
+                        processAudioData(payload, Number(timestamp));
+                    }
+                    break;
+                default:
+                    appendLog(`Unknown binary packet type: ${packetType}`, true);
             }
 		}
 	};

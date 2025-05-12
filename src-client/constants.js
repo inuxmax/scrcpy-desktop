@@ -11,10 +11,23 @@ export const DEFAULT_FRAMES_PER_FRAGMENT = 1;
 export const NALU_TYPE_IDR = 5;
 
 export const AUDIO_BYTES_PER_SAMPLE = 2;
-export const BINARY_TYPES = {
-	VIDEO: 0,
-	AUDIO: 1
+
+export const BINARY_PACKET_TYPES = {
+	LEGACY_VIDEO_H264: 0x00,
+	LEGACY_AUDIO_AAC_ADTS: 0x01,
+    WC_VIDEO_CONFIG_H264: 0x10,
+    WC_VIDEO_KEY_FRAME_H264: 0x11,
+    WC_VIDEO_DELTA_FRAME_H264: 0x12,
+    WC_AUDIO_CONFIG_AAC: 0x20,
+    WC_AUDIO_FRAME_AAC: 0x21,
 };
+
+export const DECODER_TYPES = {
+    WEBCODECS: 'webcodecs',
+    MSE: 'mse',
+    BROADWAY: 'broadway',
+};
+
 export const CODEC_IDS = {
 	H264: 0x68323634,
 	AAC: 0x00616163

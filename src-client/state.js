@@ -4,9 +4,11 @@ export const globalState = {
 	ws: null,
 	converter: null,
 	broadwayPlayer: null,
+    webCodecsVideoDecoder: null,
+    webCodecsAudioDecoder: null, 
+    webCodecCanvasCtx: null,
 	isRunning: false,
-	audioContext: null,
-	audioDecoder: null,
+	audioContext: null, 
 	audioCodecId: null,
 	audioMetadata: null,
 	receivedFirstAudioPacket: false,
@@ -46,7 +48,7 @@ export const globalState = {
 	currentDisplayMode: 'default',
     volumeChangeTimeout: null,
     lastVolumeSendTime: 0,
-    decoderType: 'mse', 
+    decoderType: 'webcodecs', 
     pendingVolumeValue: null,
     frameCheckCounter: 0,
     qrWs: null,
@@ -61,8 +63,17 @@ export const globalState = {
 export function resetStreamRelatedState() {
     globalState.converter = null;
     globalState.broadwayPlayer = null;
+    if (globalState.webCodecsVideoDecoder && globalState.webCodecsVideoDecoder.state !== 'closed') {
+        globalState.webCodecsVideoDecoder.close();
+    }
+    globalState.webCodecsVideoDecoder = null;
+    if (globalState.webCodecsAudioDecoder && globalState.webCodecsAudioDecoder.state !== 'closed') {
+         globalState.webCodecsAudioDecoder.close();
+    }
+    globalState.webCodecsAudioDecoder = null;
+    globalState.webCodecCanvasCtx = null;
+
 	globalState.audioContext = null;
-	globalState.audioDecoder = null;
 	globalState.sourceBufferInternal = null;
 	globalState.currentTimeNotChangedSince = -1;
 	globalState.bigBufferSince = -1;

@@ -26,6 +26,7 @@ export const elements = {
 	videoPlaceholder: document.getElementById('videoPlaceholder'),
 	videoElement: document.getElementById('screen'),
 	broadwayCanvas: document.getElementById('broadwayCanvas'),
+    webcodecCanvas: document.getElementById('webcodecCanvas'),
 	videoBorder: document.getElementById('videoBorder'),
 	logArea: document.getElementById('logArea'),
 	logContent: document.getElementById('logContent'),
