@@ -2,10 +2,10 @@ import { elements } from '../domElements.js';
 import { globalState } from '../state.js';
 import { sendWebSocketMessage } from '../websocketService.js';
 import { appendLog } from '../loggerService.js';
-import { HIDE_TASKBAR_TIMEOUT_MS, DOUBLE_CLICK_THRESHOLD_MS, CONTROL_MSG_TYPE_SET_SCREEN_POWER_MODE_CLIENT, 
-		 SCREEN_POWER_MODE_OFF_CLIENT, CONTROL_MSG_TYPE_EXPAND_NOTIFICATION_PANEL, 
+import { HIDE_TASKBAR_TIMEOUT_MS, DOUBLE_CLICK_THRESHOLD_MS, CONTROL_MSG_TYPE_SET_SCREEN_POWER_MODE_CLIENT,
+		 SCREEN_POWER_MODE_OFF_CLIENT, CONTROL_MSG_TYPE_EXPAND_NOTIFICATION_PANEL,
 		 CONTROL_MSG_TYPE_EXPAND_SETTINGS_PANEL, VOLUME_THROTTLE_MS } from '../constants.js';
-		 
+
 import { sendControlMessageToServer } from '../websocketService.js';
 import { sendAdbCommandToServer } from '../services/adbClientService.js';
 
@@ -116,10 +116,13 @@ function handlePinToggle(isDoubleClick = false) {
         if (!streamArea) return;
 
         let isStreamVisible = false;
-        if (globalState.decoderType === 'mse' && elements.videoElement?.classList.contains('visible')) {
-            isStreamVisible = true;
-        } else if (globalState.decoderType === 'broadway' && globalState.broadwayPlayer?.canvas?.classList.contains('visible')) {
-            isStreamVisible = true;
+
+        if (globalState.decoderType === 'mse') {
+            isStreamVisible = elements.videoElement?.classList.contains('visible');
+        } else if (globalState.decoderType === 'broadway') {
+            isStreamVisible = globalState.broadwayPlayer?.canvas?.classList.contains('visible') || elements.broadwayCanvas?.classList.contains('visible');
+        } else if (globalState.decoderType === 'webcodecs') {
+            isStreamVisible = elements.webcodecCanvas?.classList.contains('visible');
         }
 
 		if (!document.fullscreenElement) {
@@ -217,7 +220,7 @@ export function openPanel(panelId) {
 	closeActivePanel();
 	const panel = document.getElementById(panelId);
 	if (panel) {
-		panel.classList.add('active');	
+		panel.classList.add('active');
 		globalState.activePanel = panelId;
 		showTaskbar();
         clearTimeout(globalState.taskbarHideTimeout);
@@ -338,7 +341,7 @@ export function initTaskbarControls() {
     if (elements.notificationPanelButton) {
         elements.notificationPanelButton.addEventListener('click', expandNotificationPanel);
     }
-	
+
     if (elements.settingsPanelButton) {
         elements.settingsPanelButton.addEventListener('click', expandSettingsPanel);
     }

@@ -37,10 +37,13 @@ export function initHeaderControls() {
             if (!streamArea) return;
 
             let isStreamVisible = false;
-            if (globalState.decoderType === 'mse' && elements.videoElement?.classList.contains('visible')) {
-                isStreamVisible = true;
-            } else if (globalState.decoderType === 'broadway' && globalState.broadwayPlayer?.canvas?.classList.contains('visible')) {
-                isStreamVisible = true;
+
+            if (globalState.decoderType === 'mse') {
+                isStreamVisible = elements.videoElement?.classList.contains('visible');
+            } else if (globalState.decoderType === 'broadway') {
+                isStreamVisible = globalState.broadwayPlayer?.canvas?.classList.contains('visible') || elements.broadwayCanvas?.classList.contains('visible');
+            } else if (globalState.decoderType === 'webcodecs') {
+                isStreamVisible = elements.webcodecCanvas?.classList.contains('visible');
             }
 
             if (!document.fullscreenElement) {

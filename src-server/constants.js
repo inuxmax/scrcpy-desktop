@@ -15,7 +15,7 @@ const LogLevel = {
     ERROR: 3
 };
 
-const CURRENT_LOG_LEVEL = LogLevel.DEBUG;
+const CURRENT_LOG_LEVEL = LogLevel.INFO;
 
 const BASE_SCRCPY_OPTIONS = {
     log_level: CURRENT_LOG_LEVEL === LogLevel.DEBUG ? 'debug' : 'info',

@@ -1,16 +1,11 @@
 export const CHECK_STATE_INTERVAL_MS = 500;
 export const MAX_SEEK_WAIT_MS = 1000;
 export const MAX_TIME_TO_RECOVER = 200;
-export const IS_SAFARI = !!window.safari;
-export const IS_CHROME = navigator.userAgent.includes('Chrome');
-export const IS_MAC = navigator.platform.startsWith('Mac');
-export const MAX_BUFFER = IS_SAFARI ? 2 : IS_CHROME && IS_MAC ? 0.9 : 0.2;
+export const MAX_BUFFER = 0.2;
 export const MAX_AHEAD = -0.2;
-export const DEFAULT_FRAMES_PER_SECOND = 30;
+export const DEFAULT_FRAMES_PER_SECOND = 60;
 export const DEFAULT_FRAMES_PER_FRAGMENT = 1;
 export const NALU_TYPE_IDR = 5;
-
-export const AUDIO_BYTES_PER_SAMPLE = 2;
 
 export const BINARY_PACKET_TYPES = {
 	LEGACY_VIDEO_H264: 0x00,

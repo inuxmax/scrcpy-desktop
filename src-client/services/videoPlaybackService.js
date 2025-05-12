@@ -215,13 +215,12 @@ function cleanSourceBuffer() {
 }
 
 function checkForIFrameAndCleanBuffer(frameData) {
-    if (C.IS_SAFARI) return;
     globalState.frameCheckCounter = (globalState.frameCheckCounter + 1) % C.FRAME_CHECK_INTERVAL;
     if (globalState.frameCheckCounter !== 0) return;
 
     if (!elements.videoElement?.buffered || !elements.videoElement.buffered.length) return;
     const buffered = elements.videoElement.buffered.end(0) - elements.videoElement.currentTime;
-    const MAX_BUFFER_CLEAN = C.IS_SAFARI ? 2 : (C.IS_CHROME && C.IS_MAC ? 1.2 : 0.5);
+    const MAX_BUFFER_CLEAN = 0.5;
     if (buffered < MAX_BUFFER_CLEAN * 1.5) return;
 
     if (!globalState.sourceBufferInternal) {
@@ -420,7 +419,7 @@ export function checkForBadState() {
     if (elements.videoElement.buffered && elements.videoElement.buffered.length > 0) {
         const end = elements.videoElement.buffered.end(0);
         const buffered = end - currentTime;
-        const MAX_BUFFER_CHECK = C.IS_SAFARI ? 2 : (C.IS_CHROME && C.IS_MAC ? 1.2 : 0.5);
+        const MAX_BUFFER_CHECK = 0.5;
         if (buffered > MAX_BUFFER_CHECK || buffered < C.MAX_AHEAD) calculateMomentumStats();
     }
     if (globalState.momentumQualityStats && globalState.momentumQualityStats.decodedFrames === 0 && globalState.momentumQualityStats.inputFrames > 0) {
@@ -435,7 +434,7 @@ export function checkForBadState() {
     if (elements.videoElement.buffered && elements.videoElement.buffered.length > 0) {
         const end = elements.videoElement.buffered.end(0);
         const buffered = end - currentTime;
-        const MAX_BUFFER_JUMP = C.IS_SAFARI ? 2 : (C.IS_CHROME && C.IS_MAC ? 1.2 : 0.5);
+        const MAX_BUFFER_JUMP = 0.5;
         if (buffered > MAX_BUFFER_JUMP) {
             if (globalState.bigBufferSince === -1) globalState.bigBufferSince = now;
             else if (now - globalState.bigBufferSince > C.MAX_TIME_TO_RECOVER) hasReasonToJump = true;

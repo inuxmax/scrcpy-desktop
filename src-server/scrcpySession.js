@@ -137,18 +137,6 @@ function parseAudioSpecificConfig(buffer) {
 	return { profile: C.PROFILE_MAP[objectType], sampleRateIndex, sampleRate, channelConfig, rawASC: buffer };
 }
 
-
-function createAdtsHeader(aacFrameLength, metadata) {
-	const { profile, sampleRateIndex, channelConfig } = metadata;
-	const frameLength = 7 + aacFrameLength; const header = Buffer.alloc(7);
-	header[0] = 0xFF; header[1] = 0xF9;
-	header[2] = (profile << 6) | (sampleRateIndex << 2) | ((channelConfig >> 2) & 0x1);
-	header[3] = ((channelConfig & 0x3) << 6) | ((frameLength >> 11) & 0x3);
-	header[4] = (frameLength >> 3) & 0xFF;
-	header[5] = ((frameLength & 0x7) << 5) | 0x1F; header[6] = 0xFC;
-	return header;
-}
-
 function _handleAwaitingInitialData(socket, dynBuffer, session, client) {
     if (!session.deviceNameReceived) {
         if (dynBuffer.length >= C.DEVICE_NAME_LENGTH) {
