@@ -14,7 +14,7 @@ async function handleStart(clientId, ws, message) {
         return;
     }
     const deviceId = message.deviceId;
-    const decoderType = message.decoderType || 'mse'; 
+    const decoderType = message.decoderType || 'mse';
 
     if (!deviceId) {
         ws.send(JSON.stringify({ type: C.MESSAGE_TYPES.ERROR, message: 'No device selected.' }));

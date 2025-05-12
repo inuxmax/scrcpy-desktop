@@ -50,7 +50,7 @@ export function initializeWebSocket() {
             switch (message.type) {
                 case 'deviceName': handleDeviceName(message); break;
                 case 'videoInfo': processVideoInfo(message.width, message.height); break;
-                case 'audioInfo': handleAudioInfo(message); break; 
+                case 'audioInfo': handleAudioInfo(message); break;
                 case 'status':
                     updateStatus(message.message);
                     if (message.message === 'Streaming started') handleStreamingStarted();
@@ -87,9 +87,9 @@ export function initializeWebSocket() {
 			const dataView = new DataView(arrayBuffer);
 			if (dataView.byteLength < 1) return;
 			const packetType = dataView.getUint8(0);
-            
+
             let payload, timestamp, frameTypeStr;
-            const HEADER_LENGTH_TIMESTAMPED = 1 + 8; 
+            const HEADER_LENGTH_TIMESTAMPED = 1 + 8;
             const HEADER_LENGTH_SPS_INFO = 1 + 1 + 1 + 1; // type + profile + compat + level
 
             switch (packetType) {
@@ -101,7 +101,6 @@ export function initializeWebSocket() {
                     break;
                 case BINARY_PACKET_TYPES.LEGACY_AUDIO_AAC_ADTS:
                     payload = arrayBuffer.slice(1);
-                    // This path is now fully deprecated for audio, server always sends WC format
                     break;
                 case BINARY_PACKET_TYPES.WC_VIDEO_CONFIG_H264:
                     if (arrayBuffer.byteLength < HEADER_LENGTH_SPS_INFO) {
@@ -122,7 +121,7 @@ export function initializeWebSocket() {
                         appendLog("WebCodecs video frame too short for header.", true);
                         return;
                     }
-                    timestamp = dataView.getBigUint64(1, false); 
+                    timestamp = dataView.getBigUint64(1, false);
                     payload = arrayBuffer.slice(HEADER_LENGTH_TIMESTAMPED);
                     frameTypeStr = (packetType === BINARY_PACKET_TYPES.WC_VIDEO_KEY_FRAME_H264) ? 'key' : 'delta';
                     if (globalState.decoderType === DECODER_TYPES.WEBCODECS) {
@@ -131,7 +130,7 @@ export function initializeWebSocket() {
                     break;
                 case BINARY_PACKET_TYPES.WC_AUDIO_CONFIG_AAC:
                     payload = arrayBuffer.slice(1);
-                    if (elements.enableAudioInput.checked) { // Audio always uses WebCodecs if enabled
+                    if (elements.enableAudioInput.checked) {
                          setupAudioDecoder(globalState.audioCodecId || 0x00616163, globalState.audioMetadata, payload);
                     }
                     break;
@@ -140,9 +139,9 @@ export function initializeWebSocket() {
                         appendLog("WebCodecs audio frame too short for header.", true);
                         return;
                     }
-                    timestamp = dataView.getBigUint64(1, false); 
+                    timestamp = dataView.getBigUint64(1, false);
                     payload = arrayBuffer.slice(HEADER_LENGTH_TIMESTAMPED);
-                    if (elements.enableAudioInput.checked) { // Audio always uses WebCodecs if enabled
+                    if (elements.enableAudioInput.checked) {
                         processAudioData(payload, Number(timestamp));
                     }
                     break;
