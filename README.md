@@ -71,6 +71,7 @@ Most scrcpy streaming parameters can be configured directly through the web inte
 
 *   [scrcpy](https://github.com/Genymobile/scrcpy) - For the core screen mirroring server.
 *   [h264-converter](https://github.com/xevojapan/h264-converter) - For in-browser fmp4 muxing.
+*   [Brodway H264 Decoder](https://github.com/mbebenita/Broadway) - For in-browser h264 video decoding.
 ---
 
 
