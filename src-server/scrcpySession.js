@@ -306,6 +306,49 @@ function createAVCC(spsNaluWithStartCode, ppsNaluWithStartCode) {
     return avccBox.subarray(0, offset);
 }
 
+const START_CODE_3 = Buffer.from([0, 0, 1]);
+const START_CODE_4 = Buffer.from([0, 0, 0, 1]);
+
+function annexBToLengthPrefixed(annexBBuffer) {
+    const nalus = [];
+    let offset = 0;
+
+    while (offset < annexBBuffer.length) {
+        let startCodeOffset = -1;
+        let startCodeLength = 0;
+
+        const idx3 = annexBBuffer.indexOf(START_CODE_3, offset);
+        const idx4 = annexBBuffer.indexOf(START_CODE_4, offset);
+
+        if (idx4 !== -1 && (idx3 === -1 || idx4 < idx3)) {
+            startCodeOffset = idx4;
+            startCodeLength = 4;
+        } else if (idx3 !== -1) {
+            startCodeOffset = idx3;
+            startCodeLength = 3;
+        }
+
+        if (startCodeOffset !== -1) {
+            if (startCodeOffset > offset) {
+                nalus.push(annexBBuffer.slice(offset, startCodeOffset));
+            }
+            offset = startCodeOffset + startCodeLength;
+        } else {
+            nalus.push(annexBBuffer.slice(offset));
+            break;
+        }
+    }
+
+    const buffers = [];
+    for (const nalu of nalus) {
+        if (nalu.length === 0) continue;
+        const length = Buffer.alloc(4);
+        length.writeUInt32BE(nalu.length, 0);
+        buffers.push(length, nalu);
+    }
+
+    return Buffer.concat(buffers);
+}
 
 function _processVideoStreamPacket(socket, dynBuffer, session, client) {
     if (dynBuffer.length >= C.PACKET_HEADER_LENGTH) {
@@ -360,10 +403,14 @@ function _processVideoStreamPacket(socket, dynBuffer, session, client) {
                     }
                 } else {
                     packetType = keyFrameFlagInt ? C.BINARY_PACKET_TYPES.WC_VIDEO_KEY_FRAME_H264 : C.BINARY_PACKET_TYPES.WC_VIDEO_DELTA_FRAME_H264;
-                    const header = Buffer.alloc(1 + 8); 
+                    const header = Buffer.alloc(1 + 8);
                     header.writeUInt8(packetType, 0);
-                    header.writeBigUInt64BE(pts, 1); 
-                    client.ws.send(Buffer.concat([header, payload]), { binary: true });
+                    header.writeBigUInt64BE(pts, 1);
+                    const lengthPrefixedPayload = annexBToLengthPrefixed(payload);
+                    const frameBuffer = Buffer.alloc(header.length + lengthPrefixedPayload.length);
+                    header.copy(frameBuffer);
+                    lengthPrefixedPayload.copy(frameBuffer, header.length);
+                    client.ws.send(frameBuffer, { binary: true });
                 }
             } else { 
                 if (configFlagInt) {
@@ -380,7 +427,10 @@ function _processVideoStreamPacket(socket, dynBuffer, session, client) {
                      }
                 }
                 const typeBuffer = Buffer.alloc(1); typeBuffer.writeUInt8(C.BINARY_PACKET_TYPES.LEGACY_VIDEO_H264, 0);
-                client.ws.send(Buffer.concat([typeBuffer, payload]), { binary: true });
+                const frameBuffer = Buffer.alloc(typeBuffer.length + payload.length);
+                typeBuffer.copy(frameBuffer);
+                payload.copy(frameBuffer, typeBuffer.length);
+                client.ws.send(frameBuffer, { binary: true });
             }
 
             dynBuffer.buffer.copy(dynBuffer.buffer, 0, totalPacketLength, dynBuffer.length);
@@ -408,7 +458,10 @@ function _processAudioStreamPacket(socket, dynBuffer, session, client) {
                     if (session.audioMetadata && session.audioMetadata.rawASC) {
                         const header = Buffer.alloc(1);
                         header.writeUInt8(C.BINARY_PACKET_TYPES.WC_AUDIO_CONFIG_AAC, 0);
-                        client.ws.send(Buffer.concat([header, session.audioMetadata.rawASC]), { binary: true });
+                        const configBuffer = Buffer.alloc(header.length + session.audioMetadata.rawASC.length);
+                        header.copy(configBuffer);
+                        session.audioMetadata.rawASC.copy(configBuffer, header.length);
+                        client.ws.send(configBuffer, { binary: true });
                         log(C.LogLevel.DEBUG, `[TCP Audio ${socket.scid}] Sent ASC config to client.`);
                     } else {
                          log(C.LogLevel.ERROR, `[TCP Audio ${socket.scid}] Failed to get raw ASC from audio config.`);
@@ -418,7 +471,10 @@ function _processAudioStreamPacket(socket, dynBuffer, session, client) {
                 const header = Buffer.alloc(1 + 8);
                 header.writeUInt8(C.BINARY_PACKET_TYPES.WC_AUDIO_FRAME_AAC, 0);
                 header.writeBigUInt64BE(pts, 1);
-                client.ws.send(Buffer.concat([header, payload]), { binary: true });
+                const frameBuffer = Buffer.alloc(header.length + payload.length);
+                header.copy(frameBuffer);
+                payload.copy(frameBuffer, header.length);
+                client.ws.send(frameBuffer, { binary: true });
             }
 
 

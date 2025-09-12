@@ -83,7 +83,10 @@ export function initializeVideoPlayback() {
 
 
     if (globalState.decoderType === C.DECODER_TYPES.MSE) {
-        if (elements.videoElement) elements.videoElement.style.display = 'block';
+        if (elements.videoElement) {
+            elements.videoElement.style.display = 'block';
+            elements.videoElement.classList.add('mse-active');
+        }
         if (typeof VideoConverter !== 'function') {
             appendLog('VideoConverter class not available. Cannot initialize MSE.', true); return;
         }
@@ -137,12 +140,16 @@ export function initializeVideoPlayback() {
             error: (e) => appendLog(`VideoDecoder error: ${e.message}`, true),
         });
         appendLog('WebCodecs video decoder initialized (awaiting config).');
+        globalState.videoRenderHandle = requestAnimationFrame(renderVideoFrame);
     }
     handleVideoInfo(0,0);
 }
 
 export function stopVideoPlayback() {
     if (globalState.decoderType === C.DECODER_TYPES.MSE) {
+        if (elements.videoElement) {
+            elements.videoElement.classList.remove('mse-active');
+        }
         if (globalState.converter) {
             try {
                 globalState.converter.appendRawData(new Uint8Array([]));
@@ -169,6 +176,10 @@ export function stopVideoPlayback() {
             elements.broadwayCanvas.classList.remove('visible');
         }
     } else if (globalState.decoderType === C.DECODER_TYPES.WEBCODECS) {
+        if (globalState.videoRenderHandle) {
+            cancelAnimationFrame(globalState.videoRenderHandle);
+            globalState.videoRenderHandle = null;
+        }
         if (globalState.webCodecsVideoDecoder && globalState.webCodecsVideoDecoder.state !== 'closed') {
             globalState.webCodecsVideoDecoder.close();
         }
@@ -179,6 +190,7 @@ export function stopVideoPlayback() {
             if(globalState.webCodecCanvasCtx) globalState.webCodecCanvasCtx.clearRect(0,0, elements.webcodecCanvas.width, elements.webcodecCanvas.height);
             globalState.webCodecCanvasCtx = null;
         }
+        globalState.videoFrameBuffer = [];
     }
     handleVideoInfo(0, 0);
     if (elements.videoElement && globalState.decoderType === C.DECODER_TYPES.MSE) elements.videoElement.style.display = 'block';
@@ -186,6 +198,18 @@ export function stopVideoPlayback() {
 
     if (elements.broadwayCanvas && globalState.decoderType !== C.DECODER_TYPES.BROADWAY) elements.broadwayCanvas.style.display = 'none';
     if (elements.webcodecCanvas && globalState.decoderType !== C.DECODER_TYPES.WEBCODECS) elements.webcodecCanvas.style.display = 'none';
+}
+
+function renderVideoFrame() {
+    if (globalState.decoderType === C.DECODER_TYPES.WEBCODECS) {
+        if (globalState.videoFrameBuffer.length > 0) {
+            const chunk = globalState.videoFrameBuffer.shift();
+            if (globalState.webCodecsVideoDecoder && globalState.webCodecsVideoDecoder.state === 'configured') {
+                globalState.webCodecsVideoDecoder.decode(chunk);
+            }
+        }
+        globalState.videoRenderHandle = requestAnimationFrame(renderVideoFrame);
+    }
 }
 
 function isIFrame(frameData) {
@@ -241,75 +265,6 @@ function checkForIFrameAndCleanBuffer(frameData) {
 }
 
 
-function annexBToLengthPrefixed(annexBBuffer) {
-    const result = [];
-    let offset = 0;
-    const len = annexBBuffer.byteLength;
-
-    while (offset < len) {
-        let startCodeLength = 0;
-        if (offset + 3 <= len && annexBBuffer[offset] === 0 && annexBBuffer[offset + 1] === 0 && annexBBuffer[offset + 2] === 1) {
-            startCodeLength = 3;
-        } else if (offset + 4 <= len && annexBBuffer[offset] === 0 && annexBBuffer[offset + 1] === 0 && annexBBuffer[offset + 2] === 0 && annexBBuffer[offset + 3] === 1) {
-            startCodeLength = 4;
-        }
-
-        if (startCodeLength === 0) {
-            // Not a valid start code at the current position. This shouldn't happen with a valid Annex B stream,
-            // but as a fallback, we could decide how to handle remaining bytes.
-            // For simplicity here, we'll break or append remaining as one NALU if not empty.
-             if (len - offset > 0) {
-                 // Append remaining bytes as a single NALU. This might be wrong if it wasn't a valid NALU structure.
-                 // A more robust parser might throw an error or log a warning.
-                 const remaining = annexBBuffer.slice(offset);
-                 const lengthBuffer = new Uint8Array(4);
-                 new DataView(lengthBuffer.buffer).setUint32(0, remaining.byteLength, false); // Big-endian length
-                 result.push(lengthBuffer);
-                 result.push(remaining);
-             }
-            break;
-        }
-
-        let nextStartCodeOffset = -1;
-        let searchOffset = offset + startCodeLength;
-
-        while (searchOffset + 3 <= len) {
-            if (searchOffset + 4 <= len && annexBBuffer[searchOffset] === 0 && annexBBuffer[searchOffset + 1] === 0 && annexBBuffer[searchOffset + 2] === 0 && annexBBuffer[searchOffset + 3] === 1) {
-                 nextStartCodeOffset = searchOffset;
-                 break;
-            }
-            if (annexBBuffer[searchOffset] === 0 && annexBBuffer[searchOffset + 1] === 0 && annexBBuffer[searchOffset + 2] === 1) {
-                 nextStartCodeOffset = searchOffset;
-                 break;
-            }
-            searchOffset++;
-        }
-
-        const naluDataEnd = (nextStartCodeOffset === -1) ? len : nextStartCodeOffset;
-        const naluData = annexBBuffer.slice(offset + startCodeLength, naluDataEnd);
-
-        const lengthBuffer = new Uint8Array(4);
-        new DataView(lengthBuffer.buffer).setUint32(0, naluData.byteLength, false); // Big-endian length
-
-        result.push(lengthBuffer);
-        result.push(naluData);
-
-        offset = naluDataEnd;
-    }
-
-    // Concatenate all parts into a single ArrayBuffer
-    const totalLength = result.reduce((sum, buffer) => sum + buffer.byteLength, 0);
-    const finalBuffer = new Uint8Array(totalLength);
-    let currentOffset = 0;
-    for (const buffer of result) {
-        finalBuffer.set(buffer, currentOffset);
-        currentOffset += buffer.byteLength;
-    }
-
-    return finalBuffer.buffer; // Return as ArrayBuffer
-}
-
-
 export function handleVideoData(payloadArrayBuffer, timestamp = null, frameType = null) {
     if (!globalState.isRunning) return;
 
@@ -337,17 +292,27 @@ export function handleVideoData(payloadArrayBuffer, timestamp = null, frameType 
             return;
         }
         try {
-            // Convert Annex B to length-prefixed format for WebCodecs
-            const lengthPrefixedData = annexBToLengthPrefixed(new Uint8Array(payloadArrayBuffer));
-
+            if (globalState.videoFrameBuffer.length > C.MAX_VIDEO_FRAME_BUFFER_SIZE) {
+                appendLog('Video buffer full, dropping frames to catch up.', true);
+                let lastKeyFrameIndex = -1;
+                for (let i = globalState.videoFrameBuffer.length - 1; i >= 0; i--) {
+                    if (globalState.videoFrameBuffer[i].type === 'key') {
+                        lastKeyFrameIndex = i;
+                        break;
+                    }
+                }
+                if (lastKeyFrameIndex > 0) {
+                    globalState.videoFrameBuffer.splice(0, lastKeyFrameIndex);
+                }
+            }
             const chunk = new EncodedVideoChunk({
                 type: frameType, // 'key' or 'delta'
                 timestamp: timestamp,
-                data: lengthPrefixedData // Pass the length-prefixed data
+                data: payloadArrayBuffer
             });
-            globalState.webCodecsVideoDecoder.decode(chunk);
+            globalState.videoFrameBuffer.push(chunk);
         } catch (e) {
-            appendLog(`WebCodecs Video: Error decoding chunk: ${e.message}`, true);
+            appendLog(`WebCodecs Video: Error creating chunk: ${e.message}`, true);
         }
     }
 }
@@ -369,6 +334,7 @@ export function configureWebCodecsVideoDecoder(spsProfile, spsCompat, spsLevel, 
             globalState.webCodecsVideoDecoder.configure({
                 codec: codecString,
                 description: avccBuffer, // AVCC buffer is already length-prefixed format
+                hardwareAcceleration: 'prefer-hardware',
             });
             appendLog('WebCodecs video decoder configured successfully.');
         } catch (e) {

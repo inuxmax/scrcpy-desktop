@@ -256,6 +256,10 @@ header h1 {
     cursor: crosshair;
 }
 
+#screen.control-enabled.mse-active {
+    cursor: default;
+}
+
 #videoPlaceholder {
     position: absolute;
     top: 0;

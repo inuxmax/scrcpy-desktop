@@ -94,13 +94,13 @@ export function initializeWebSocket() {
 
             switch (packetType) {
                 case BINARY_PACKET_TYPES.LEGACY_VIDEO_H264:
-                    payload = arrayBuffer.slice(1);
+                    payload = new Uint8Array(arrayBuffer, 1);
                     if (globalState.decoderType === DECODER_TYPES.MSE || globalState.decoderType === DECODER_TYPES.BROADWAY) {
                         processVideoData(payload);
                     }
                     break;
                 case BINARY_PACKET_TYPES.LEGACY_AUDIO_AAC_ADTS:
-                    payload = arrayBuffer.slice(1);
+                    payload = new Uint8Array(arrayBuffer, 1);
                     break;
                 case BINARY_PACKET_TYPES.WC_VIDEO_CONFIG_H264:
                     if (arrayBuffer.byteLength < HEADER_LENGTH_SPS_INFO) {
@@ -110,7 +110,7 @@ export function initializeWebSocket() {
                     const spsProfile = dataView.getUint8(1);
                     const spsCompat = dataView.getUint8(2);
                     const spsLevel = dataView.getUint8(3);
-                    payload = arrayBuffer.slice(HEADER_LENGTH_SPS_INFO);
+                    payload = new Uint8Array(arrayBuffer, HEADER_LENGTH_SPS_INFO);
                     if (globalState.decoderType === DECODER_TYPES.WEBCODECS) {
                         configureWebCodecsVideoDecoder(spsProfile, spsCompat, spsLevel, payload);
                     }
@@ -122,7 +122,7 @@ export function initializeWebSocket() {
                         return;
                     }
                     timestamp = dataView.getBigUint64(1, false);
-                    payload = arrayBuffer.slice(HEADER_LENGTH_TIMESTAMPED);
+                    payload = new Uint8Array(arrayBuffer, HEADER_LENGTH_TIMESTAMPED);
                     frameTypeStr = (packetType === BINARY_PACKET_TYPES.WC_VIDEO_KEY_FRAME_H264) ? 'key' : 'delta';
                     if (globalState.decoderType === DECODER_TYPES.WEBCODECS) {
                         processVideoData(payload, Number(timestamp), frameTypeStr);
@@ -140,7 +140,7 @@ export function initializeWebSocket() {
                         return;
                     }
                     timestamp = dataView.getBigUint64(1, false);
-                    payload = arrayBuffer.slice(HEADER_LENGTH_TIMESTAMPED);
+                    payload = new Uint8Array(arrayBuffer, HEADER_LENGTH_TIMESTAMPED);
                     if (elements.enableAudioInput.checked) {
                         processAudioData(payload, Number(timestamp));
                     }

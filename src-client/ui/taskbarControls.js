@@ -239,9 +239,22 @@ export function closeActivePanel() {
 	}
 }
 
+function throttle(func, limit) {
+    let inThrottle;
+    return function() {
+        const args = arguments;
+        const context = this;
+        if (!inThrottle) {
+            func.apply(context, args);
+            inThrottle = true;
+            setTimeout(() => inThrottle = false, limit);
+        }
+    }
+}
+
 export function initTaskbarControls() {
     if (elements.streamArea) {
-        elements.streamArea.addEventListener('mousemove', showTaskbar);
+        elements.streamArea.addEventListener('mousemove', throttle(showTaskbar, 100));
         elements.streamArea.addEventListener('mouseleave', () => {
 	        clearTimeout(globalState.taskbarHideTimeout);
 	        if (!globalState.activePanel) hideTaskbar();

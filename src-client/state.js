@@ -58,6 +58,8 @@ export const globalState = {
     activePanel: null,
     lastPinToggleClickTime: 0,
     pendingAdbCommands: new Map(),
+    videoFrameBuffer: [],
+    videoRenderHandle: null,
 };
 
 export function resetStreamRelatedState() {
