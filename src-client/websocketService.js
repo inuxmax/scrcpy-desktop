@@ -14,7 +14,18 @@ export function initializeWebSocket() {
         }
 		return;
 	}
-	globalState.ws = new WebSocket(`ws://${window.location.hostname}:8080`);
+	const resolveWebSocketUrl = () => {
+		// Allow explicit override, e.g. window.__WS_URL__ = 'wss://your-backend.example.com';
+		if (typeof window !== 'undefined' && window.__WS_URL__) return window.__WS_URL__;
+		const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+		const protocol = isHttps ? 'wss' : 'ws';
+		const host = typeof window !== 'undefined' ? window.location.host : 'localhost'; // includes port if present
+		// If host already includes a port, keep it; otherwise default to 8080 only for non-HTTPS (dev)
+		const hasPort = host.includes(':');
+		const portSuffix = hasPort ? '' : (isHttps ? '' : ':8080');
+		return `${protocol}://${host}${portSuffix}`;
+	};
+	globalState.ws = new WebSocket(resolveWebSocketUrl());
 	globalState.ws.binaryType = 'arraybuffer';
 
 	globalState.ws.onopen = () => {
