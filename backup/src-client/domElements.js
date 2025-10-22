@@ -77,39 +77,4 @@ export const elements = {
     batteryFill: document.querySelector('.battery-fill'),
     batteryIcon: document.querySelector('.battery-icon'),
     decoderTypeSelect: document.getElementById('decoderType'),
-    
-    // Settings Modal Elements
-    settingsBtn: document.getElementById('settingsBtn'),
-    settingsModalOverlay: document.getElementById('settingsModalOverlay'),
-    closeSettingsModalBtn: document.getElementById('closeSettingsModalBtn'),
-    saveSettingsBtn: document.getElementById('saveSettingsBtn'),
-    cancelSettingsBtn: document.getElementById('cancelSettingsBtn'),
-    modalDecoderType: document.getElementById('modalDecoderType'),
-    modalResolution: document.getElementById('modalResolution'),
-    modalCustomResolution: document.getElementById('modalCustomResolution'),
-    modalDpi: document.getElementById('modalDpi'),
-    modalCustomDpi: document.getElementById('modalCustomDpi'),
-    modalMaxFps: document.getElementById('modalMaxFps'),
-    modalRotationLock: document.getElementById('modalRotationLock'),
-    modalBitrate: document.getElementById('modalBitrate'),
-    modalCustomBitrate: document.getElementById('modalCustomBitrate'),
-    
-    // Modal Display Mode Elements
-    modalDisplayModeDefault: document.getElementById('modalDisplayModeDefault'),
-    modalDisplayModeOverlay: document.getElementById('modalDisplayModeOverlay'),
-    modalDisplayModeVirtual: document.getElementById('modalDisplayModeVirtual'),
-    modalDisplayModeNative: document.getElementById('modalDisplayModeNative'),
-    modalDisplayModeDex: document.getElementById('modalDisplayModeDex'),
-    
-    // Modal Additional Options Elements
-    modalNoPowerOn: document.getElementById('modalNoPowerOn'),
-    modalTurnScreenOff: document.getElementById('modalTurnScreenOff'),
-    modalPowerOffOnClose: document.getElementById('modalPowerOffOnClose'),
-    modalEnableAudio: document.getElementById('modalEnableAudio'),
-    modalEnableControl: document.getElementById('modalEnableControl'),
-    modalNoPowerOnLabel: document.getElementById('modalNoPowerOnLabel'),
-    modalTurnScreenOffLabel: document.getElementById('modalTurnScreenOffLabel'),
-    modalPowerOffOnCloseLabel: document.getElementById('modalPowerOffOnCloseLabel'),
-    modalEnableAudioLabel: document.getElementById('modalEnableAudioLabel'),
-    modalEnableControlLabel: document.getElementById('modalEnableControlLabel'),
 };

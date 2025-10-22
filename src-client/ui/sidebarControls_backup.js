@@ -9,40 +9,40 @@ import { handleStreamingStopped } from '../messageHandlers.js';
 
 function getStreamSettings() {
     return {
-        maxFps: elements.maxFpsSelect ? parseInt(elements.maxFpsSelect.value) || 0 : 0,
-        bitrate: ((elements.customBitrateInput && !isNaN(parseInt(elements.customBitrateInput.value.trim())) && parseInt(elements.customBitrateInput.value.trim()) > 0) ?
-            parseInt(elements.customBitrateInput.value.trim()) : (elements.bitrateSelect ? parseInt(elements.bitrateSelect.value) : 0)) * 1000000,
-        enableAudio: elements.enableAudioInput ? elements.enableAudioInput.checked : false,
-        enableControl: elements.enableControlInput ? elements.enableControlInput.checked : false,
+        maxFps: parseInt(elements.maxFpsSelect.value) || 0,
+        bitrate: ((!isNaN(parseInt(elements.customBitrateInput.value.trim())) && parseInt(elements.customBitrateInput.value.trim()) > 0) ?
+            parseInt(elements.customBitrateInput.value.trim()) : parseInt(elements.bitrateSelect.value)) * 1000000,
+        enableAudio: elements.enableAudioInput.checked,
+        enableControl: elements.enableControlInput.checked,
         video: true,
-        noPowerOn: elements.noPowerOnInput ? elements.noPowerOnInput.checked : false,
-        turnScreenOff: elements.turnScreenOffInput ? elements.turnScreenOffInput.checked : false,
-        powerOffOnClose: elements.powerOffOnCloseInput ? elements.powerOffOnCloseInput.checked : false,
+        noPowerOn: elements.noPowerOnInput.checked,
+        turnScreenOff: elements.turnScreenOffInput.checked,
+        powerOffOnClose: elements.powerOffOnCloseInput.checked,
         displayMode: globalState.currentDisplayMode,
-        rotationLock: elements.rotationLockSelect ? elements.rotationLockSelect.value : 'unlocked',
-        resolution: (elements.customResolutionInput && elements.customResolutionInput.value.trim()) || (elements.resolutionSelect ? elements.resolutionSelect.value : ''),
-        dpi: (elements.customDpiInput && elements.customDpiInput.value.trim()) || (elements.dpiSelect ? elements.dpiSelect.value : ''),
-        decoderType: elements.decoderTypeSelect ? elements.decoderTypeSelect.value : 'mse', 
+        rotationLock: elements.rotationLockSelect.value,
+        resolution: elements.customResolutionInput.value.trim() || elements.resolutionSelect.value,
+        dpi: elements.customDpiInput.value.trim() || elements.dpiSelect.value,
+        decoderType: elements.decoderTypeSelect.value, 
     };
 }
 
-export async function startStreaming() {
-    if (!globalState.selectedDeviceId) {
-        alert('Please select an ADB device.');
-        return;
-    }
-    if (globalState.isRunning) return;
-    if (!globalState.ws || globalState.ws.readyState !== WebSocket.OPEN) {
-        appendLog("WebSocket not connected. Cannot start.", true);
-        return;
-    }
+async function startStreaming() {
+	if (!globalState.selectedDeviceId) {
+		alert('Please select an ADB device.');
+		return;
+	}
+	if (globalState.isRunning) return;
+	if (!globalState.ws || globalState.ws.readyState !== WebSocket.OPEN) {
+		appendLog("WebSocket not connected. Cannot start.", true);
+		return;
+	}
 
 	globalState.isRunning = true;
-    globalState.decoderType = elements.decoderTypeSelect ? elements.decoderTypeSelect.value : 'mse';
-    globalState.controlEnabledAtStart = elements.enableControlInput ? elements.enableControlInput.checked : false;
+    globalState.decoderType = elements.decoderTypeSelect.value;
+    globalState.controlEnabledAtStart = elements.enableControlInput.checked;
 	updateDisplayOptionsOnStreamStart();
 
-    const streamSettings = getStreamSettings();
+	const streamSettings = getStreamSettings();
     const startMessage = {
         action: 'start',
         deviceId: globalState.selectedDeviceId,
@@ -106,8 +106,8 @@ export async function startStreaming() {
             startMessage.dpi = finalDpi;
 		}
         initializeVideoPlayback();
-        sendWebSocketMessage(startMessage);
-    } catch (error) {
+		sendWebSocketMessage(startMessage);
+	} catch (error) {
 		appendLog(`Error during pre-start ADB commands: ${error.message}`, true);
 		stopStreamingAndCleanup(false);
 	}
@@ -138,18 +138,16 @@ export async function stopStreamingAndCleanup(sendDisconnect = true) {
 }
 
 export function requestAdbDevices() {
-    if (globalState.ws && globalState.ws.readyState === WebSocket.OPEN) {
-        sendWebSocketMessage({ action: 'getAdbDevices' });
-        if (elements.refreshButton) elements.refreshButton.disabled = true;
-    } else {
-        populateDeviceSelect([]);
+	if (globalState.ws && globalState.ws.readyState === WebSocket.OPEN) {
+		sendWebSocketMessage({ action: 'getAdbDevices' });
+		if (elements.refreshButton) elements.refreshButton.disabled = true;
+	} else {
+		populateDeviceSelect([]);
         if (elements.refreshButton) elements.refreshButton.disabled = false;
-    }
+	}
 }
 
 export function populateDeviceSelect(devices) {
-	if (!elements.adbDevicesSelect) return;
-	
 	elements.adbDevicesSelect.innerHTML = '';
 	globalState.adbDevices = devices || [];
 	if (globalState.adbDevices.length === 0) {
@@ -286,7 +284,81 @@ export function updateDisplayOptionsOnStreamStop() {
 }
 
 
+export async function startStreaming() {
+	if (!globalState.selectedDeviceId) {
+		alert('Please select an ADB device.');
+		return;
+	}
+	if (globalState.isRunning) return;
+	if (!globalState.ws || globalState.ws.readyState !== WebSocket.OPEN) {
+		appendLog("WebSocket not connected. Cannot start.", true);
+		return;
+	}
+
+	globalState.isRunning = true;
+    globalState.decoderType = elements.decoderTypeSelect.value;
+    globalState.controlEnabledAtStart = elements.enableControlInput.checked;
+	updateDisplayOptionsOnStreamStart();
+
+	const streamSettings = getStreamSettings();
+    const startMessage = {
+        action: 'start',
+        deviceId: globalState.selectedDeviceId,
+        ...streamSettings
+    };
+
+    try {
+		if (globalState.currentDisplayMode === 'overlay') {
+			if (streamSettings.resolution === "reset" || streamSettings.dpi === "reset") {
+				throw new Error("Resolution and DPI must be set for Overlay mode.");
+			}
+			updateStatus("Overlay Mode: Fetching initial displays...");
+			const initialDisplaysResponse = await sendAdbCommandToServer({ commandType: 'getDisplayList' });
+			const initialDisplayIds = initialDisplaysResponse.data.map(d => d.id);
+
+			updateStatus(`Overlay Mode: Setting overlay display to ${streamSettings.resolution}/${streamSettings.dpi}...`);
+			await sendAdbCommandToServer({ commandType: 'setOverlay', resolution: streamSettings.resolution, dpi: streamSettings.dpi });
+
+			updateStatus("Overlay Mode: Fetching updated displays...");
+			await new Promise(resolve => setTimeout(resolve, 2000));
+			const updatedDisplaysResponse = await sendAdbCommandToServer({ commandType: 'getDisplayList' });
+			const updatedDisplayIds = updatedDisplaysResponse.data.map(d => d.id);
+
+			const newDisplayIds = updatedDisplayIds.filter(id => !initialDisplayIds.includes(id));
+			if (newDisplayIds.length === 0) throw new Error("Overlay Mode: Could not find new display ID.");
+			startMessage.overlayDisplayId = newDisplayIds[0];
+			updateStatus(`Overlay Mode: Using new display ID ${startMessage.overlayDisplayId}`);
+
+		} else if (globalState.currentDisplayMode === 'native_taskbar') {
+			updateStatus("Native Taskbar Mode: Setting up native taskbar...");
+			await sendAdbCommandToServer({ commandType: 'setNativeTaskbar' });
+			updateStatus("Native Taskbar Mode: Native taskbar enabled");
+
+		} else if (globalState.currentDisplayMode === 'dex') {
+			updateStatus("DeX Mode: Setting up Samsung DeX...");
+			await sendAdbCommandToServer({ commandType: 'setDex' });
+			updateStatus("DeX Mode: Samsung DeX enabled");
+
+		} else if (globalState.currentDisplayMode === 'virtual') {
+			updateStatus("Virtual Display Mode: Setting up virtual display...");
+			await sendAdbCommandToServer({ commandType: 'setVirtualDisplay' });
+			updateStatus("Virtual Display Mode: Virtual display enabled");
+		}
+
+        sendWebSocketMessage(startMessage);
+        appendLog(`Starting stream for device: ${globalState.selectedDeviceId}`);
+        updateStatus('Starting stream...');
+        
+    } catch (error) {
+        globalState.isRunning = false;
+        updateDisplayOptionsOnStreamStart();
+        appendLog(`Stream start failed: ${error.message}`, true);
+        updateStatus(`Stream start failed: ${error.message}`);
+    }
+}
+
 export function initSidebarControls() {
+    // Check if elements exist before adding event listeners
     if (elements.startButton) {
         elements.startButton.addEventListener('click', startStreaming);
     }
@@ -309,7 +381,7 @@ export function initSidebarControls() {
         };
     }
 
-    if (elements.displayModeCheckboxes) {
+    if (elements.displayModeCheckboxes && elements.displayModeCheckboxes.length > 0) {
         elements.displayModeCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', () => {
                 if (checkbox.checked) {

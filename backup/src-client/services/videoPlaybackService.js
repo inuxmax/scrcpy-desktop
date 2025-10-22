@@ -411,26 +411,13 @@ export function checkForBadState() {
         } else globalState.aheadOfBufferSince = -1;
         if (globalState.currentTimeNotChangedSince !== -1 && now - globalState.currentTimeNotChangedSince > C.MAX_TIME_TO_RECOVER) hasReasonToJump = true;
         if (!hasReasonToJump) return;
-        // Kiểm tra nếu đang seek, đợi hoặc bỏ qua
-        if (globalState.seekingSince !== -1) {
-            const seekWaitTime = now - globalState.seekingSince;
-            if (seekWaitTime < C.MAX_SEEK_WAIT_MS) {
-                // Vẫn đang trong thời gian chờ seek, bỏ qua
-                return;
-            } else {
-                // Seek đã quá lâu, reset và thử lại
-                appendLog('Previous seek timed out, resetting seek state.', true);
-                globalState.seekingSince = -1;
-            }
-        }
-        
+        if (globalState.seekingSince !== -1 && now - globalState.seekingSince < C.MAX_SEEK_WAIT_MS) return;
         const onSeekEnd = () => {
             globalState.seekingSince = -1;
             elements.videoElement.removeEventListener('seeked', onSeekEnd);
             elements.videoElement.play().catch(e => { appendLog(`Video play error after seek: ${e.message}`, true); });
         };
-        
-        // Bắt đầu seek mới
+        if (globalState.seekingSince !== -1) appendLog('Seek already in progress, but attempting again due to bad state.', true);
         globalState.seekingSince = now;
         elements.videoElement.addEventListener('seeked', onSeekEnd);
         elements.videoElement.currentTime = end;
